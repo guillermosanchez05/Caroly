@@ -16,7 +16,8 @@
   <title>Caroly</title>
 </head>
 <body>
-  <header class="app-header">
+  <div id="page-diary" class="page">
+    <header class="app-header">
     <div class="date-nav">
       <button id="prev-day" class="icon-btn" type="button" aria-label="Día anterior">‹</button>
       <div class="date-label">
@@ -28,7 +29,20 @@
     <div class="summary" id="summary"></div>
   </header>
 
-  <main class="meals" id="meals"></main>
+    <main class="meals" id="meals"></main>
+  </div>
+
+  <!-- Foods management page -->
+  <section id="page-foods" class="page" hidden>
+    <header class="app-header foods-header">
+      <h1 class="page-title">Alimentos</h1>
+      <div class="sheet-toolbar foods-toolbar">
+        <input id="foods-search" type="search" placeholder="Buscar alimento..." autocomplete="off" />
+        <button id="foods-new-btn" class="btn btn-primary" type="button">＋ Nuevo</button>
+      </div>
+    </header>
+    <ul id="foods-list" class="foods-manage-list"></ul>
+  </section>
 
   <!-- Food picker -->
   <section id="picker" class="overlay" hidden>
@@ -49,7 +63,7 @@
   <section id="food-form" class="overlay" hidden>
     <div class="sheet">
       <header class="sheet-header">
-        <h2>Nuevo alimento</h2>
+        <h2 id="food-form-title">Nuevo alimento</h2>
         <button class="icon-btn" id="food-form-close" type="button" aria-label="Cerrar">✕</button>
       </header>
       <form id="new-food-form" class="sheet-body" novalidate>
@@ -111,6 +125,43 @@
       </div>
     </div>
   </section>
+
+  <!-- Voice review sheet -->
+  <section id="voice-sheet" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2>Resultado de voz</h2>
+        <button class="icon-btn" id="voice-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <p class="hint">Lo que he entendido:</p>
+        <p id="voice-transcript" class="voice-transcript"></p>
+        <p id="voice-error" class="error" hidden></p>
+        <label class="field">
+          <span>Comida</span>
+          <select id="voice-meal"></select>
+        </label>
+        <ul id="voice-items" class="entry-list"></ul>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="voice-retry">🎤 Repetir</button>
+          <button type="button" class="btn btn-primary" id="voice-confirm">Añadir</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Floating microphone -->
+  <button id="mic-btn" class="mic-btn" type="button" aria-label="Añadir por voz" title="Añadir por voz">
+    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+      <path fill="currentColor" d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+    </svg>
+  </button>
+
+  <!-- Bottom navigation -->
+  <nav class="tabbar">
+    <button class="tab is-active" data-page="diary" type="button">📅 Diario</button>
+    <button class="tab" data-page="foods" type="button">🥗 Alimentos</button>
+  </nav>
 
   <script type="module" src="js/app.js"></script>
 </body>

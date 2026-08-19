@@ -9,6 +9,7 @@ const ASSETS = [
   './css/style.css',
   './js/app.js',
   './js/db.js',
+  './js/deepseek.js',
   './js/foods.js',
   './js/utils.js',
   './manifest.json',
@@ -36,8 +37,23 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  // Only handle same-origin requests (e.g. skip the DeepSeek API).
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request)),
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then((response) => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      });
+    }),
   );
 });

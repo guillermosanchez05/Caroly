@@ -123,3 +123,31 @@ export async function cleanupOldDays(dateKey) {
   for (const key of toDelete) store.delete(key);
   await txDone(writeTx);
 }
+
+/** Update an existing food in the catalog (handles renaming). */
+export async function updateFood(oldName, food) {
+  const db = await openDB();
+
+  if (oldName !== food.name) {
+    const readTx = db.transaction(FOODS_STORE, 'readonly');
+    const existing = await requestAsPromise(readTx.objectStore(FOODS_STORE).get(food.name));
+    if (existing) {
+      throw new Error(`The food "${food.name}" already exists.`);
+    }
+  }
+
+  const writeTx = db.transaction(FOODS_STORE, 'readwrite');
+  const store = writeTx.objectStore(FOODS_STORE);
+  if (oldName !== food.name) store.delete(oldName);
+  store.put(food);
+  await txDone(writeTx);
+  return food;
+}
+
+/** Delete a food from the catalog. */
+export async function deleteFood(name) {
+  const db = await openDB();
+  const tx = db.transaction(FOODS_STORE, 'readwrite');
+  tx.objectStore(FOODS_STORE).delete(name);
+  await txDone(tx);
+}
