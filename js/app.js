@@ -69,6 +69,13 @@ const els = {
   voiceItems: $('voice-items'),
   voiceRetry: $('voice-retry'),
   voiceConfirm: $('voice-confirm'),
+  settingsBtn: $('settings-btn'),
+  settingsSheet: $('settings-sheet'),
+  settingsClose: $('settings-close'),
+  settingsCancel: $('settings-cancel'),
+  settingsSave: $('settings-save'),
+  settingsKey: $('settings-key'),
+  settingsStatus: $('settings-status'),
 };
 
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -587,6 +594,33 @@ async function confirmVoice() {
   renderAll();
 }
 
+// ----- Settings -----
+
+function openSettings() {
+  try {
+    els.settingsKey.value = localStorage.getItem('caroly.deepseekKey') || '';
+  } catch {
+    els.settingsKey.value = '';
+  }
+  els.settingsStatus.textContent = '';
+  els.settingsSheet.hidden = false;
+}
+
+function saveSettings() {
+  const key = els.settingsKey.value.trim();
+  try {
+    if (key) {
+      localStorage.setItem('caroly.deepseekKey', key);
+      els.settingsStatus.textContent = 'Clave guardada en este dispositivo.';
+    } else {
+      localStorage.removeItem('caroly.deepseekKey');
+      els.settingsStatus.textContent = 'Clave eliminada.';
+    }
+  } catch {
+    els.settingsStatus.textContent = 'No se pudo guardar la clave.';
+  }
+}
+
 // ----- Overlay helpers -----
 
 function closeAllOverlays() {
@@ -640,6 +674,11 @@ function bindEvents() {
   els.voiceClose.addEventListener('click', closeVoiceSheet);
   els.voiceRetry.addEventListener('click', () => { closeVoiceSheet(); startVoice(); });
   els.voiceConfirm.addEventListener('click', confirmVoice);
+
+  els.settingsBtn.addEventListener('click', openSettings);
+  els.settingsClose.addEventListener('click', () => { els.settingsSheet.hidden = true; });
+  els.settingsCancel.addEventListener('click', () => { els.settingsSheet.hidden = true; });
+  els.settingsSave.addEventListener('click', saveSettings);
 }
 
 

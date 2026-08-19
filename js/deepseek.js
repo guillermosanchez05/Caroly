@@ -16,6 +16,16 @@ async function loadConfig() {
   return configCache;
 }
 
+function readApiKey(config) {
+  try {
+    const stored = localStorage.getItem('caroly.deepseekKey');
+    if (stored) return stored;
+  } catch {
+    // localStorage unavailable (e.g. Node).
+  }
+  return config.DEEPSEEK_API_KEY || '';
+}
+
 function buildSystemPrompt() {
   return [
     'Eres un asistente de nutrición. A partir de un texto en español en el que una persona describe lo que ha comido, extrae los alimentos y sus cantidades.',
@@ -38,9 +48,9 @@ function buildSystemPrompt() {
  */
 export async function extractFoodsFromText(text, foods) {
   const config = await loadConfig();
-  const apiKey = config.DEEPSEEK_API_KEY || '';
+  const apiKey = readApiKey(config);
   if (!apiKey) {
-    throw new Error('Falta la API key de DeepSeek (js/config.js).');
+    throw new Error('No hay API key de DeepSeek. Añádela en Ajustes (pestaña Alimentos → ⚙️).');
   }
   const model = config.DEEPSEEK_MODEL || DEFAULT_MODEL;
 

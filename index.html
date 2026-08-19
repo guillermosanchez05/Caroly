@@ -37,6 +37,7 @@
     <header class="app-header foods-header">
       <h1 class="page-title">Alimentos</h1>
       <div class="sheet-toolbar foods-toolbar">
+        <button id="settings-btn" class="icon-btn" type="button" aria-label="Ajustes">⚙️</button>
         <input id="foods-search" type="search" placeholder="Buscar alimento..." autocomplete="off" />
         <button id="foods-new-btn" class="btn btn-primary" type="button">＋ Nuevo</button>
       </div>
@@ -121,6 +122,28 @@
         <div class="sheet-actions">
           <button type="button" class="btn" id="quantity-cancel">Cancelar</button>
           <button type="button" class="btn btn-primary" id="quantity-confirm">Añadir</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings sheet -->
+  <section id="settings-sheet" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2>Ajustes</h2>
+        <button class="icon-btn" id="settings-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <label class="field">
+          <span>API key de DeepSeek</span>
+          <input id="settings-key" type="password" autocomplete="off" placeholder="sk-..." />
+        </label>
+        <p class="hint">Se guarda solo en este dispositivo (localStorage) y no se sube a GitHub. Es necesaria para la entrada por voz.</p>
+        <p id="settings-status" class="hint"></p>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="settings-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="settings-save">Guardar</button>
         </div>
       </div>
     </div>
