@@ -1,7 +1,7 @@
-// Service worker: precaches the whole app shell and serves it cache-first,
-// so the PWA works fully offline after the first load.
+// Service worker: precaches the app shell, serves it cache-first, and always
+// fetches fresh HTML for navigation so updates are picked up automatically.
 
-const CACHE_NAME = 'caroly-v1';
+const CACHE_NAME = 'caroly-v2';
 
 const ASSETS = [
   './',
@@ -44,6 +44,21 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin requests (e.g. skip the DeepSeek API).
   if (url.origin !== self.location.origin) return;
 
+  // Navigations (HTML): network-first so app updates are served immediately.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match(request)),
+    );
+    return;
+  }
+
+  // Static assets: cache-first, then network with runtime caching.
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
