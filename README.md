@@ -38,7 +38,7 @@ la API de DeepSeek para extraer los alimentos y añadirlos al día.
 
 Requisitos:
 - Conexión a internet (el dictado y la interpretación no funcionan offline).
-- Una API key de DeepSeek. Se configura en la app: pestaña **Alimentos → ⚙️ Ajustes**.
+- Una API key de DeepSeek. Se configura en la app: pestaña **⚙️ Ajustes**.
   La clave se guarda solo en el dispositivo (localStorage) y **no se sube a GitHub**.
 
 Para desarrollo local también puedes usar `js/config.js` (gitignored) como alternativa:

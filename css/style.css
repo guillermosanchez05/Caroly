@@ -500,6 +500,12 @@ input:focus {
   padding: 16px 0;
 }
 
+.settings-body {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
 .foods-item {
   background: var(--surface);
   border-radius: 14px;

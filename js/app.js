@@ -69,13 +69,15 @@ const els = {
   voiceItems: $('voice-items'),
   voiceRetry: $('voice-retry'),
   voiceConfirm: $('voice-confirm'),
-  settingsBtn: $('settings-btn'),
-  settingsSheet: $('settings-sheet'),
-  settingsClose: $('settings-close'),
-  settingsCancel: $('settings-cancel'),
+  pageSettings: $('page-settings'),
   settingsSave: $('settings-save'),
   settingsKey: $('settings-key'),
   settingsStatus: $('settings-status'),
+  listeningSheet: $('listening-sheet'),
+  listeningTitle: $('listening-title'),
+  listeningText: $('listening-text'),
+  listeningClose: $('listening-close'),
+  listeningCancel: $('listening-cancel'),
 };
 
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -92,6 +94,8 @@ const state = {
   editingFood: null,
   foodFormOrigin: 'picker',
   voiceItems: [],
+  listening: false,
+  recognition: null,
 };
 
 init();
@@ -167,9 +171,11 @@ function switchPage(page) {
   state.page = page;
   els.pageDiary.hidden = page !== 'diary';
   els.pageFoods.hidden = page !== 'foods';
+  els.pageSettings.hidden = page !== 'settings';
   document.querySelectorAll('.tab').forEach((tab) =>
     tab.classList.toggle('is-active', tab.dataset.page === page));
   if (page === 'foods') renderFoodsList(els.foodsSearch.value);
+  if (page === 'settings') loadSettingsKey();
 }
 
 // ----- Rendering: diary -----
@@ -469,7 +475,7 @@ function getRecognition() {
   if (!SpeechRecognition) return null;
   const recognition = new SpeechRecognition();
   recognition.lang = 'es-ES';
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   recognition.maxAlternatives = 1;
   return recognition;
 }
@@ -489,34 +495,85 @@ function toggleMicListening(on) {
   els.micBtn.classList.toggle('is-listening', on);
 }
 
+function openListeningSheet() {
+  els.listeningSheet.hidden = false;
+}
+
+function closeListeningSheet() {
+  els.listeningSheet.hidden = true;
+}
+
+function cancelListening() {
+  state.listening = false;
+  toggleMicListening(false);
+  if (state.recognition) {
+    try { state.recognition.abort(); } catch { /* ignore */ }
+    state.recognition = null;
+  }
+  closeListeningSheet();
+}
+
 function startVoice() {
+  if (state.listening) return;
   const recognition = getRecognition();
   if (!recognition) {
     window.alert('Tu navegador no soporta reconocimiento de voz. Usa Safari o Chrome actualizados.');
     return;
   }
   state.recognition = recognition;
+  state.listening = true;
   toggleMicListening(true);
+  els.listeningTitle.textContent = 'Escuchando…';
+  els.listeningText.textContent = 'Habla ahora…';
+  openListeningSheet();
 
   recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    handleVoiceTranscript(transcript);
+    let interim = '';
+    let final = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) final += result[0].transcript;
+      else interim += result[0].transcript;
+    }
+    if (final) {
+      closeListeningSheet();
+      handleVoiceTranscript(final.trim());
+    } else if (interim) {
+      els.listeningText.textContent = interim;
+    }
   };
+
   recognition.onerror = (event) => {
+    state.listening = false;
     toggleMicListening(false);
-    const messages = {
-      'not-allowed': 'Permiso de micrófono denegado. Actívalo en los ajustes del navegador.',
-      'no-speech': 'No he detectado voz. Inténtalo de nuevo.',
-      network: 'Error de red en el reconocimiento de voz.',
-    };
-    window.alert(messages[event.error] || `Error de voz: ${event.error}`);
+    state.recognition = null;
+    if (event.error === 'aborted') {
+      closeListeningSheet();
+      return;
+    }
+    if (event.error === 'no-speech') {
+      els.listeningText.textContent = 'No he detectado voz. Pulsa Cancelar o vuelve a intentarlo.';
+      return;
+    }
+    closeListeningSheet();
+    if (event.error === 'not-allowed') {
+      window.alert('Permiso de micrófono denegado. Actívalo en Ajustes → Privacidad → Micrófono.');
+      return;
+    }
+    window.alert(`Error de voz: ${event.error}`);
   };
-  recognition.onend = () => toggleMicListening(false);
+
+  recognition.onend = () => {
+    state.listening = false;
+    toggleMicListening(false);
+    state.recognition = null;
+  };
 
   recognition.start();
 }
 
 async function handleVoiceTranscript(transcript) {
+  closeListeningSheet();
   els.voiceTranscript.textContent = transcript;
   els.voiceError.hidden = true;
   els.voiceItems.innerHTML = '<li class="empty">Interpretando…</li>';
@@ -596,14 +653,13 @@ async function confirmVoice() {
 
 // ----- Settings -----
 
-function openSettings() {
+function loadSettingsKey() {
   try {
     els.settingsKey.value = localStorage.getItem('caroly.deepseekKey') || '';
   } catch {
     els.settingsKey.value = '';
   }
   els.settingsStatus.textContent = '';
-  els.settingsSheet.hidden = false;
 }
 
 function saveSettings() {
@@ -675,10 +731,10 @@ function bindEvents() {
   els.voiceRetry.addEventListener('click', () => { closeVoiceSheet(); startVoice(); });
   els.voiceConfirm.addEventListener('click', confirmVoice);
 
-  els.settingsBtn.addEventListener('click', openSettings);
-  els.settingsClose.addEventListener('click', () => { els.settingsSheet.hidden = true; });
-  els.settingsCancel.addEventListener('click', () => { els.settingsSheet.hidden = true; });
   els.settingsSave.addEventListener('click', saveSettings);
+
+  els.listeningClose.addEventListener('click', cancelListening);
+  els.listeningCancel.addEventListener('click', cancelListening);
 }
 
 
