@@ -16,6 +16,8 @@ import {
 } from './db.js';
 import { MEAL_TYPES, MEAL_LABELS } from './foods.js';
 import { extractFoodsFromText } from './deepseek.js';
+import { lookupProduct } from './off.js';
+import { startScanning, decodeFromFile } from './barcode.js';
 import {
   todayKey,
   addDays,
@@ -38,6 +40,25 @@ const els = {
   foodsSearch: $('foods-search'),
   foodsNewBtn: $('foods-new-btn'),
   foodsList: $('foods-list'),
+  foodsScanBtn: $('foods-scan-btn'),
+  scanForm: $('scan-form'),
+  scanClose: $('scan-close'),
+  scanVideo: $('scan-video'),
+  scanPhotoBtn: $('scan-photo-btn'),
+  scanCancel: $('scan-cancel'),
+  scanFile: $('scan-file'),
+  scanStatus: $('scan-status'),
+  scanPreview: $('scan-preview'),
+  previewClose: $('preview-close'),
+  previewCancel: $('preview-cancel'),
+  previewSave: $('preview-save'),
+  previewName: $('preview-name'),
+  previewBrands: $('preview-brands'),
+  previewKcal: $('preview-kcal'),
+  previewProtein: $('preview-protein'),
+  previewCarbs: $('preview-carbs'),
+  previewFat: $('preview-fat'),
+  previewError: $('preview-error'),
   pageRecipes: $('page-recipes'),
   recipesSearch: $('recipes-search'),
   recipesNewBtn: $('recipes-new-btn'),
@@ -143,6 +164,7 @@ const state = {
   recipeEntryDraft: null,
   listening: false,
   recognition: null,
+  scannerStop: null,
 };
 
 init();
@@ -1296,6 +1318,137 @@ function saveSettings() {
   }
 }
 
+// ----- Barcode scanning -----
+
+function openScanner() {
+  stopScanner();
+  els.scanStatus.textContent = 'Enfoca el código de barras del producto.';
+  els.scanForm.hidden = false;
+  startScanning(els.scanVideo, onScanned)
+    .then((stop) => { state.scannerStop = stop; })
+    .catch(() => {
+      els.scanStatus.textContent = 'No se pudo acceder a la cámara. Usa "Hacer foto".';
+    });
+}
+
+function stopScanner() {
+  if (state.scannerStop) {
+    try { state.scannerStop(); } catch { /* ignore */ }
+    state.scannerStop = null;
+  }
+  els.scanVideo.srcObject = null;
+}
+
+function closeScanner() {
+  stopScanner();
+  els.scanForm.hidden = true;
+}
+
+function onScanned(barcode) {
+  stopScanner();
+  lookupBarcode(barcode);
+}
+
+async function onScanFileChosen() {
+  const file = els.scanFile.files && els.scanFile.files[0];
+  els.scanFile.value = '';
+  if (!file) return;
+  stopScanner();
+  els.scanStatus.textContent = 'Leyendo imagen…';
+  try {
+    const barcode = await decodeFromFile(file);
+    if (barcode) {
+      lookupBarcode(barcode);
+    } else {
+      els.scanStatus.textContent = 'No se ha detectado ningún código. Inténtalo de nuevo.';
+    }
+  } catch {
+    els.scanStatus.textContent = 'No se ha podido leer la imagen. Inténtalo de nuevo.';
+  }
+}
+
+async function lookupBarcode(barcode) {
+  els.scanStatus.textContent = `Buscando ${barcode}…`;
+  let product = null;
+  try {
+    product = await lookupProduct(barcode);
+  } catch {
+    product = null;
+  }
+  if (!product) {
+    els.scanForm.hidden = true;
+    openManualFoodForm(`Producto ${barcode}`);
+    return;
+  }
+  openScanPreview(product);
+}
+
+function openScanPreview(product) {
+  els.previewBrands.textContent = product.brands ? `Marca: ${product.brands}` : '';
+  els.previewName.value = product.name;
+  const unitRadio = document.querySelector(`input[name="preview-unit"][value="${product.unit}"]`);
+  if (unitRadio) unitRadio.checked = true;
+  els.previewKcal.value = product.per100.kcal;
+  els.previewProtein.value = product.per100.protein;
+  els.previewCarbs.value = product.per100.carbs;
+  els.previewFat.value = product.per100.fat;
+  els.previewError.hidden = true;
+  els.scanForm.hidden = true;
+  els.scanPreview.hidden = false;
+}
+
+function closeScanPreview() {
+  els.scanPreview.hidden = true;
+}
+
+function showPreviewError(message) {
+  els.previewError.textContent = message;
+  els.previewError.hidden = false;
+}
+
+async function saveScanPreview() {
+  const name = els.previewName.value.trim();
+  const unit = document.querySelector('input[name="preview-unit"]:checked').value;
+  const per100 = {
+    kcal: parseFloat(els.previewKcal.value),
+    protein: parseFloat(els.previewProtein.value),
+    carbs: parseFloat(els.previewCarbs.value),
+    fat: parseFloat(els.previewFat.value),
+  };
+  if (!name) {
+    showPreviewError('Introduce un nombre.');
+    return;
+  }
+  if ([per100.kcal, per100.protein, per100.carbs, per100.fat].some(
+    (v) => Number.isNaN(v) || v < 0)) {
+    showPreviewError('Introduce valores numéricos válidos (0 o más).');
+    return;
+  }
+
+  try {
+    const existing = state.foods.find((f) => f.name === name);
+    if (existing) {
+      if (!window.confirm(`"${name}" ya existe. ¿Actualizar sus valores?`)) {
+        closeScanPreview();
+        return;
+      }
+      await updateFood(name, { name, unit, per100 });
+    } else {
+      await addFood({ name, unit, per100 });
+    }
+    await refreshFoods();
+    closeScanPreview();
+    renderFoodsList(els.foodsSearch.value);
+  } catch (err) {
+    showPreviewError(err.message);
+  }
+}
+
+function openManualFoodForm(name) {
+  openFoodForm('foods');
+  els.foodName.value = name;
+}
+
 // ----- Overlay helpers -----
 
 function closeAllOverlays() {
@@ -1364,6 +1517,16 @@ function bindEvents() {
 
   els.foodsSearch.addEventListener('input', () => renderFoodsList(els.foodsSearch.value));
   els.foodsNewBtn.addEventListener('click', () => openFoodForm('foods'));
+  els.foodsScanBtn.addEventListener('click', openScanner);
+
+  els.scanClose.addEventListener('click', closeScanner);
+  els.scanCancel.addEventListener('click', closeScanner);
+  els.scanPhotoBtn.addEventListener('click', () => els.scanFile.click());
+  els.scanFile.addEventListener('change', onScanFileChosen);
+
+  els.previewClose.addEventListener('click', closeScanPreview);
+  els.previewCancel.addEventListener('click', closeScanPreview);
+  els.previewSave.addEventListener('click', saveScanPreview);
 
   els.recipesSearch.addEventListener('input', () => renderRecipesList(els.recipesSearch.value));
   els.recipesNewBtn.addEventListener('click', () => openRecipeForm(null));

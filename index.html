@@ -38,6 +38,7 @@
       <h1 class="page-title">Alimentos</h1>
       <div class="sheet-toolbar foods-toolbar">
         <input id="foods-search" type="search" placeholder="Buscar alimento..." autocomplete="off" />
+        <button id="foods-scan-btn" class="btn" type="button" aria-label="Escanear código de barras">📷</button>
         <button id="foods-new-btn" class="btn btn-primary" type="button">＋ Nuevo</button>
       </div>
     </header>
@@ -233,6 +234,74 @@
         <div class="sheet-actions">
           <button type="button" class="btn" id="recipe-entry-cancel">Cancelar</button>
           <button type="button" class="btn btn-primary" id="recipe-entry-save">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Barcode scanner -->
+  <section id="scan-form" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2>Escanear código</h2>
+        <button class="icon-btn" id="scan-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <div class="scanner-box">
+          <video id="scan-video" playsinline muted></video>
+          <div class="scan-frame"></div>
+        </div>
+        <p id="scan-status" class="hint">Enfoca el código de barras del producto.</p>
+        <div class="sheet-actions">
+          <input id="scan-file" type="file" accept="image/*" capture="environment" hidden />
+          <button type="button" class="btn" id="scan-photo-btn">📷 Hacer foto</button>
+          <button type="button" class="btn btn-primary" id="scan-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scanned product preview -->
+  <section id="scan-preview" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2>Producto encontrado</h2>
+        <button class="icon-btn" id="preview-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <p id="preview-brands" class="hint"></p>
+        <label class="field">
+          <span>Nombre</span>
+          <input id="preview-name" type="text" autocomplete="off" />
+        </label>
+        <fieldset class="unit-toggle">
+          <legend>Unidad</legend>
+          <label><input type="radio" name="preview-unit" value="g" checked /> gramos (g)</label>
+          <label><input type="radio" name="preview-unit" value="ml" /> mililitros (ml)</label>
+        </fieldset>
+        <p class="hint">Valores por 100 g/ml (editables):</p>
+        <div class="grid-2">
+          <label class="field">
+            <span>Calorías (kcal)</span>
+            <input id="preview-kcal" type="number" inputmode="decimal" min="0" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Proteínas (g)</span>
+            <input id="preview-protein" type="number" inputmode="decimal" min="0" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Hidratos (g)</span>
+            <input id="preview-carbs" type="number" inputmode="decimal" min="0" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Grasas (g)</span>
+            <input id="preview-fat" type="number" inputmode="decimal" min="0" step="0.1" />
+          </label>
+        </div>
+        <p id="preview-error" class="error" hidden></p>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="preview-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="preview-save">Guardar</button>
         </div>
       </div>
     </div>

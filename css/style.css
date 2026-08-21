@@ -616,6 +616,41 @@ input:focus {
   font: inherit;
 }
 
+/* ----- Barcode scanner ----- */
+
+.scanner-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 46vh;
+  background: #111;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+#scan-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-frame {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 45%;
+  height: 3px;
+  background: #fff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
+  animation: scan-move 1.5s ease-in-out infinite;
+}
+
+@keyframes scan-move {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(40px); }
+}
+
 .foods-item {
   background: var(--surface);
   border-radius: 14px;
