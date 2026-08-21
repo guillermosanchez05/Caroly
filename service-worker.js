@@ -1,7 +1,7 @@
-// Service worker: precaches the app shell, serves it cache-first, and always
-// fetches fresh HTML for navigation so updates are picked up automatically.
+// Service worker: precaches the app shell and uses network-first so updates
+// are picked up automatically, falling back to cache when offline.
 
-const CACHE_NAME = 'caroly-v2';
+const CACHE_NAME = 'caroly-v3';
 
 const ASSETS = [
   './',
@@ -44,31 +44,15 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin requests (e.g. skip the DeepSeek API).
   if (url.origin !== self.location.origin) return;
 
-  // Navigations (HTML): network-first so app updates are served immediately.
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match(request)),
-    );
-    return;
-  }
-
-  // Static assets: cache-first, then network with runtime caching.
+  // Network-first for everything: always serve the latest code when online,
+  // and fall back to the cached copy when offline.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response && response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
+    fetch(request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         return response;
-      });
-    }),
+      })
+      .catch(() => caches.match(request)),
   );
 });
