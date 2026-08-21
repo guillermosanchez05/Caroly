@@ -94,6 +94,7 @@ const state = {
   editingFood: null,
   foodFormOrigin: 'picker',
   voiceItems: [],
+  editingEntry: null,
   listening: false,
   recognition: null,
 };
@@ -210,12 +211,13 @@ function renderSummary() {
 
 function entryItem(type, entry) {
   return `
-    <li class="entry">
+    <li class="entry" data-type="${type}" data-id="${entry.id}" role="button" tabindex="0" aria-label="Editar cantidad de ${escapeHtml(entry.foodName)}">
       <div class="entry-main">
         <span class="entry-name">${escapeHtml(entry.foodName)}</span>
         <span class="entry-qty">${entry.quantity} ${entry.unit}</span>
       </div>
       <div class="entry-nutrition">${entry.kcal} kcal · P ${entry.protein} · C ${entry.carbs} · G ${entry.fat}</div>
+      <span class="entry-edit" aria-hidden="true">✎</span>
       <button class="entry-delete" data-type="${type}" data-id="${entry.id}" aria-label="Eliminar">✕</button>
     </li>`;
 }
@@ -242,6 +244,12 @@ function renderMeals() {
     btn.addEventListener('click', () => openPicker(btn.dataset.type)));
   document.querySelectorAll('.entry-delete').forEach((btn) =>
     btn.addEventListener('click', () => removeEntry(btn.dataset.type, btn.dataset.id)));
+  document.querySelectorAll('.entry[data-type]').forEach((li) =>
+    li.addEventListener('click', (event) => {
+      if (event.target.closest('.entry-delete')) return;
+      const entry = state.day.meals[li.dataset.type].find((e) => e.id === li.dataset.id);
+      if (entry) openQuantityEdit(li.dataset.type, entry);
+    }));
 }
 
 async function persistDay() {
@@ -298,6 +306,8 @@ function renderPickerList(query) {
 
 function openQuantity(food) {
   state.selectedFood = food;
+  state.editingEntry = null;
+  els.quantityConfirm.textContent = 'Añadir';
   els.quantityTitle.textContent = food.name;
   els.quantityInfo.innerHTML =
     `Por 100 ${food.unit}: ${food.per100.kcal} kcal · P ${food.per100.protein} · C ${food.per100.carbs} · G ${food.per100.fat}`;
@@ -309,21 +319,67 @@ function openQuantity(food) {
   els.quantityInput.focus();
 }
 
+function openQuantityEdit(type, entry) {
+  state.selectedFood = null;
+  state.editingEntry = { type, id: entry.id };
+  els.quantityConfirm.textContent = 'Guardar';
+  els.quantityTitle.textContent = entry.foodName;
+
+  const food = findFood(entry.foodName);
+  if (food) {
+    els.quantityInfo.innerHTML =
+      `Por 100 ${food.unit}: ${food.per100.kcal} kcal · P ${food.per100.protein} · C ${food.per100.carbs} · G ${food.per100.fat}`;
+  } else {
+    els.quantityInfo.textContent = 'Este alimento ya no está en el catálogo.';
+  }
+
+  els.quantityLabel.textContent = `Cantidad (${entry.unit})`;
+  els.quantityInput.value = entry.quantity;
+  els.quantityResult.textContent = '';
+  els.picker.hidden = true;
+  els.quantityForm.hidden = false;
+  els.quantityInput.focus();
+  els.quantityInput.select();
+  updateQuantityResult();
+}
+
 function updateQuantityResult() {
   const quantity = parseFloat(els.quantityInput.value);
-  if (!state.selectedFood || Number.isNaN(quantity) || quantity <= 0) {
-    els.quantityResult.textContent = '';
-    return;
+  const n = Number.isNaN(quantity) || quantity <= 0 ? null : nutritionForEntryOrFood(quantity);
+  els.quantityResult.textContent = n ? `${n.kcal} kcal · P ${n.protein} · C ${n.carbs} · G ${n.fat}` : '';
+}
+
+function nutritionForEntryOrFood(quantity) {
+  if (state.editingEntry) {
+    const { type, id } = state.editingEntry;
+    const entry = state.day.meals[type].find((e) => e.id === id);
+    const food = entry && findFood(entry.foodName);
+    if (food) return nutritionForQuantity(food.per100, quantity);
+    if (entry) {
+      const factor = quantity / entry.quantity;
+      return {
+        kcal: round1(entry.kcal * factor),
+        protein: round1(entry.protein * factor),
+        carbs: round1(entry.carbs * factor),
+        fat: round1(entry.fat * factor),
+      };
+    }
+    return null;
   }
-  const n = nutritionForQuantity(state.selectedFood.per100, quantity);
-  els.quantityResult.textContent = `${n.kcal} kcal · P ${n.protein} · C ${n.carbs} · G ${n.fat}`;
+  return state.selectedFood ? nutritionForQuantity(state.selectedFood.per100, quantity) : null;
 }
 
 async function confirmQuantity() {
   const quantity = parseFloat(els.quantityInput.value);
-  const food = state.selectedFood;
-  if (!food || Number.isNaN(quantity) || quantity <= 0) return;
-  addEntryToMeal(state.pickerTarget, food, quantity);
+  if (Number.isNaN(quantity) || quantity <= 0) return;
+
+  if (state.editingEntry) {
+    updateEntryQuantity(state.editingEntry, quantity);
+  } else if (state.selectedFood) {
+    addEntryToMeal(state.pickerTarget, state.selectedFood, quantity);
+  } else {
+    return;
+  }
   await persistDay();
   closeAllOverlays();
   renderAll();
@@ -341,6 +397,42 @@ function addEntryToMeal(type, food, quantity) {
     carbs: n.carbs,
     fat: n.fat,
   });
+}
+
+function updateEntryQuantity({ type, id }, quantity) {
+  const entry = state.day.meals[type].find((e) => e.id === id);
+  if (!entry) return;
+  const food = findFood(entry.foodName);
+  const n = food
+    ? nutritionForQuantity(food.per100, quantity)
+    : {
+        kcal: round1(entry.kcal * quantity / entry.quantity),
+        protein: round1(entry.protein * quantity / entry.quantity),
+        carbs: round1(entry.carbs * quantity / entry.quantity),
+        fat: round1(entry.fat * quantity / entry.quantity),
+      };
+  entry.quantity = round1(quantity);
+  entry.unit = food ? food.unit : entry.unit;
+  entry.kcal = n.kcal;
+  entry.protein = n.protein;
+  entry.carbs = n.carbs;
+  entry.fat = n.fat;
+}
+
+function resetQuantityForm() {
+  state.editingEntry = null;
+  state.selectedFood = null;
+  els.quantityConfirm.textContent = 'Añadir';
+}
+
+function closeQuantityForm() {
+  const wasEditing = !!state.editingEntry;
+  resetQuantityForm();
+  if (wasEditing) {
+    closeAllOverlays();
+  } else {
+    backToPicker();
+  }
 }
 
 // ----- Food form (add / edit) -----
@@ -680,12 +772,14 @@ function saveSettings() {
 // ----- Overlay helpers -----
 
 function closeAllOverlays() {
+  resetQuantityForm();
   [els.picker, els.foodForm, els.quantityForm, els.voiceSheet].forEach((o) => {
     o.hidden = true;
   });
 }
 
 function backToPicker() {
+  resetQuantityForm();
   els.foodForm.hidden = true;
   els.quantityForm.hidden = true;
   els.picker.hidden = false;
@@ -718,8 +812,8 @@ function bindEvents() {
   els.foodFormCancel.addEventListener('click', afterFoodFormClose);
   els.newFoodForm.addEventListener('submit', submitFoodForm);
 
-  els.quantityClose.addEventListener('click', backToPicker);
-  els.quantityCancel.addEventListener('click', backToPicker);
+  els.quantityClose.addEventListener('click', closeQuantityForm);
+  els.quantityCancel.addEventListener('click', closeQuantityForm);
   els.quantityConfirm.addEventListener('click', confirmQuantity);
   els.quantityInput.addEventListener('input', updateQuantityResult);
 
@@ -738,7 +832,7 @@ function bindEvents() {
 
   // Touch feedback for list items (fallback for :active on iOS).
   document.addEventListener('pointerdown', (event) => {
-    const item = event.target.closest('.food-item, .foods-item');
+    const item = event.target.closest('.food-item, .foods-item, .entry[data-type]');
     if (item) item.classList.add('is-pressed');
   });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) =>

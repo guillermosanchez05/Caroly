@@ -233,13 +233,29 @@ input {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.entry[data-type]:active,
+.entry[data-type].is-pressed {
+  background-color: var(--bg);
+}
+
+.entry-edit {
+  position: absolute;
+  top: 6px;
+  right: 34px;
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .entry-main {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding-right: 28px;
+  padding-right: 64px;
 }
 
 .entry-name {
