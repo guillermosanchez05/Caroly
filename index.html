@@ -79,6 +79,10 @@
         <h2 id="picker-title">Añadir alimento</h2>
         <button class="icon-btn" id="picker-close" type="button" aria-label="Cerrar">✕</button>
       </header>
+      <div class="picker-tabs" id="picker-tabs">
+        <button class="picker-tab is-active" data-tab="alimentos" type="button">Alimentos</button>
+        <button class="picker-tab" data-tab="recetas" type="button">Recetas</button>
+      </div>
       <div class="sheet-toolbar">
         <input id="picker-search" type="search" placeholder="Buscar alimento..." autocomplete="off" />
         <button id="new-food-btn" class="btn btn-primary" type="button">＋ Nuevo</button>
@@ -189,6 +193,28 @@
     </div>
   </section>
 
+  <!-- Servings entry -->
+  <section id="servings-form" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2 id="servings-title">Raciones</h2>
+        <button class="icon-btn" id="servings-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <div id="servings-info" class="per100-info"></div>
+        <label class="field">
+          <span>Número de raciones</span>
+          <input id="servings-input" type="number" inputmode="decimal" min="0.1" step="0.1" value="1" />
+        </label>
+        <div id="servings-result" class="result"></div>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="servings-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="servings-confirm">Añadir</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Recipe entry editor (diary) -->
   <section id="recipe-entry-form" class="overlay" hidden>
     <div class="sheet">
@@ -198,6 +224,10 @@
       </header>
       <div class="sheet-body">
         <p class="hint">Ingredientes (edita las cantidades):</p>
+        <label class="field">
+          <span>Número de raciones</span>
+          <input id="recipe-entry-servings" type="number" inputmode="decimal" min="0.1" step="0.1" />
+        </label>
         <ul id="recipe-entry-ingredients" class="entry-list"></ul>
         <p id="recipe-entry-total" class="result"></p>
         <div class="sheet-actions">

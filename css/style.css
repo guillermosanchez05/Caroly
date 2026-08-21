@@ -582,6 +582,29 @@ input:focus {
   margin-bottom: 8px;
 }
 
+.picker-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+
+.picker-tab {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.picker-tab.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 .ingredient-qty {
   width: 96px;
   min-height: 38px;

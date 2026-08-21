@@ -61,12 +61,14 @@ const els = {
   recipeEntrySave: $('recipe-entry-save'),
   recipeEntryIngredients: $('recipe-entry-ingredients'),
   recipeEntryTotal: $('recipe-entry-total'),
+  recipeEntryServings: $('recipe-entry-servings'),
   picker: $('picker'),
   pickerTitle: $('picker-title'),
   pickerClose: $('picker-close'),
   pickerSearch: $('picker-search'),
   newFoodBtn: $('new-food-btn'),
   pickerList: $('picker-list'),
+  pickerTabs: $('picker-tabs'),
   foodForm: $('food-form'),
   foodFormTitle: $('food-form-title'),
   foodFormClose: $('food-form-close'),
@@ -87,6 +89,14 @@ const els = {
   quantityLabel: $('quantity-label'),
   quantityInput: $('quantity-input'),
   quantityResult: $('quantity-result'),
+  servingsForm: $('servings-form'),
+  servingsTitle: $('servings-title'),
+  servingsClose: $('servings-close'),
+  servingsCancel: $('servings-cancel'),
+  servingsConfirm: $('servings-confirm'),
+  servingsInfo: $('servings-info'),
+  servingsInput: $('servings-input'),
+  servingsResult: $('servings-result'),
   micBtn: $('mic-btn'),
   voiceSheet: $('voice-sheet'),
   voiceClose: $('voice-close'),
@@ -118,7 +128,9 @@ const state = {
   recipes: [],
   day: null,
   pickerTarget: null,
+  pickerTab: 'alimentos',
   selectedFood: null,
+  selectedRecipe: null,
   editingFood: null,
   foodFormOrigin: 'picker',
   voiceItems: [],
@@ -317,13 +329,37 @@ async function navigate(delta) {
 
 function openPicker(type) {
   state.pickerTarget = type;
+  state.pickerTab = 'alimentos';
+  state.selectedRecipe = null;
   els.pickerTitle.textContent = `Añadir a ${MEAL_LABELS[type]}`;
   els.pickerSearch.value = '';
+  showPickerTabs(true);
+  setPickerTab('alimentos');
   renderPickerList('');
   els.picker.hidden = false;
 }
 
+function showPickerTabs(show) {
+  els.pickerTabs.hidden = !show;
+}
+
+function setPickerTab(tab) {
+  state.pickerTab = tab;
+  document.querySelectorAll('.picker-tab').forEach((btn) =>
+    btn.classList.toggle('is-active', btn.dataset.tab === tab));
+  els.pickerSearch.placeholder = tab === 'recetas' ? 'Buscar receta...' : 'Buscar alimento...';
+  els.newFoodBtn.hidden = tab === 'recetas';
+}
+
 function renderPickerList(query) {
+  if (state.pickerTab === 'recetas') {
+    renderRecipePicker(query);
+  } else {
+    renderFoodPicker(query);
+  }
+}
+
+function renderFoodPicker(query) {
   const q = query.trim().toLowerCase();
   const filtered = state.foods.filter((f) => f.name.toLowerCase().includes(q));
   els.pickerList.innerHTML = '';
@@ -340,6 +376,70 @@ function renderPickerList(query) {
     li.addEventListener('click', () => openQuantity(food));
     els.pickerList.appendChild(li);
   }
+}
+
+function renderRecipePicker(query) {
+  const q = query.trim().toLowerCase();
+  const filtered = state.recipes.filter((r) => r.name.toLowerCase().includes(q));
+  els.pickerList.innerHTML = '';
+  if (filtered.length === 0) {
+    els.pickerList.innerHTML = '<li class="empty">Sin recetas</li>';
+    return;
+  }
+  for (const recipe of filtered) {
+    const totals = sumNutrition(recipe.ingredients);
+    const li = document.createElement('li');
+    li.className = 'food-item';
+    li.innerHTML = `
+      <div class="food-name">${escapeHtml(recipe.name)}</div>
+      <div class="food-per100">${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat} · ${recipe.ingredients.length} ingred.</div>`;
+    li.addEventListener('click', () => openServings(recipe));
+    els.pickerList.appendChild(li);
+  }
+}
+
+// ----- Servings entry -----
+
+function openServings(recipe) {
+  state.selectedRecipe = recipe;
+  els.servingsTitle.textContent = recipe.name;
+  const totals = sumNutrition(recipe.ingredients);
+  els.servingsInfo.innerHTML = `${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat} · ${recipe.ingredients.length} ingred. (ración completa)`;
+  els.servingsInput.value = '1';
+  els.servingsResult.textContent = '';
+  els.picker.hidden = true;
+  els.servingsForm.hidden = false;
+  updateServingsResult();
+  els.servingsInput.focus();
+  els.servingsInput.select();
+}
+
+function updateServingsResult() {
+  const servings = parseFloat(els.servingsInput.value);
+  const recipe = state.selectedRecipe;
+  if (!recipe || Number.isNaN(servings) || servings <= 0) {
+    els.servingsResult.textContent = '';
+    return;
+  }
+  const data = recipeEntryData(recipe, servings);
+  els.servingsResult.textContent = `${data.kcal} kcal · P ${data.protein} · C ${data.carbs} · G ${data.fat}`;
+}
+
+async function confirmServings() {
+  const recipe = state.selectedRecipe;
+  const servings = parseFloat(els.servingsInput.value);
+  if (!recipe || Number.isNaN(servings) || servings <= 0) return;
+  pushEntryToMeal(state.pickerTarget, recipeEntryData(recipe, servings));
+  await persistDay();
+  closeAllOverlays();
+  renderAll();
+}
+
+function closeServingsToPicker() {
+  state.selectedRecipe = null;
+  els.servingsForm.hidden = true;
+  els.picker.hidden = false;
+  renderPickerList(els.pickerSearch.value);
 }
 
 // ----- Quantity entry -----
@@ -770,8 +870,11 @@ async function saveRecipe() {
 
 function openPickerForRecipe() {
   state.pickerTarget = null;
+  state.pickerTab = 'alimentos';
   els.pickerTitle.textContent = 'Añadir ingrediente';
   els.pickerSearch.value = '';
+  showPickerTabs(false);
+  setPickerTab('alimentos');
   renderPickerList('');
   els.recipeForm.hidden = true;
   els.picker.hidden = false;
@@ -820,6 +923,7 @@ function openRecipeEntryEdit(type, entry) {
   state.editingRecipeEntry = { type, id: entry.id };
   state.recipeEntryDraft = {
     name: entry.foodName,
+    servings: entry.quantity,
     ingredients: entry.ingredients.map((ing) => ({
       foodName: ing.foodName,
       unit: ing.unit,
@@ -836,6 +940,7 @@ function openRecipeEntryEdit(type, entry) {
     })),
   };
   els.recipeEntryTitle.textContent = entry.foodName;
+  els.recipeEntryServings.value = entry.quantity;
   renderRecipeEntryIngredients();
   els.recipeEntryForm.hidden = false;
 }
@@ -891,6 +996,29 @@ function updateRecipeEntryTotal() {
   els.recipeEntryTotal.textContent = `${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat}`;
 }
 
+function onRecipeEntryServingsChange() {
+  const draft = state.recipeEntryDraft;
+  if (!draft) return;
+  const newServings = parseFloat(els.recipeEntryServings.value);
+  if (Number.isNaN(newServings) || newServings <= 0) return;
+
+  const ratio = newServings / draft.servings;
+  draft.servings = newServings;
+  for (const ing of draft.ingredients) {
+    ing.baseQty = round1(ing.baseQty * ratio);
+    ing.baseKcal = round1(ing.baseKcal * ratio);
+    ing.baseProtein = round1(ing.baseProtein * ratio);
+    ing.baseCarbs = round1(ing.baseCarbs * ratio);
+    ing.baseFat = round1(ing.baseFat * ratio);
+    ing.quantity = round1(ing.quantity * ratio);
+    ing.kcal = round1(ing.kcal * ratio);
+    ing.protein = round1(ing.protein * ratio);
+    ing.carbs = round1(ing.carbs * ratio);
+    ing.fat = round1(ing.fat * ratio);
+  }
+  renderRecipeEntryIngredients();
+}
+
 async function saveRecipeEntry() {
   if (!state.editingRecipeEntry || !state.recipeEntryDraft) return;
   const { type, id } = state.editingRecipeEntry;
@@ -912,6 +1040,8 @@ async function saveRecipeEntry() {
   entry.protein = totals.protein;
   entry.carbs = totals.carbs;
   entry.fat = totals.fat;
+  entry.quantity = round1(state.recipeEntryDraft.servings);
+  entry.unit = 'ración';
 
   await persistDay();
   closeRecipeEntryForm();
@@ -1150,7 +1280,8 @@ function saveSettings() {
 
 function closeAllOverlays() {
   resetQuantityForm();
-  [els.picker, els.foodForm, els.quantityForm, els.voiceSheet].forEach((o) => {
+  state.selectedRecipe = null;
+  [els.picker, els.foodForm, els.quantityForm, els.voiceSheet, els.servingsForm].forEach((o) => {
     o.hidden = true;
   });
 }
@@ -1159,6 +1290,7 @@ function backToPicker() {
   resetQuantityForm();
   els.foodForm.hidden = true;
   els.quantityForm.hidden = true;
+  els.servingsForm.hidden = true;
   els.picker.hidden = false;
   renderPickerList(els.pickerSearch.value);
 }
@@ -1188,6 +1320,12 @@ function bindEvents() {
   els.pickerSearch.addEventListener('input', () => renderPickerList(els.pickerSearch.value));
   els.newFoodBtn.addEventListener('click', () => openFoodForm('picker'));
 
+  document.querySelectorAll('.picker-tab').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      setPickerTab(btn.dataset.tab);
+      renderPickerList(els.pickerSearch.value);
+    }));
+
   els.foodFormClose.addEventListener('click', afterFoodFormClose);
   els.foodFormCancel.addEventListener('click', afterFoodFormClose);
   els.newFoodForm.addEventListener('submit', submitFoodForm);
@@ -1196,6 +1334,11 @@ function bindEvents() {
   els.quantityCancel.addEventListener('click', closeQuantityForm);
   els.quantityConfirm.addEventListener('click', confirmQuantity);
   els.quantityInput.addEventListener('input', updateQuantityResult);
+
+  els.servingsClose.addEventListener('click', closeServingsToPicker);
+  els.servingsCancel.addEventListener('click', closeServingsToPicker);
+  els.servingsConfirm.addEventListener('click', confirmServings);
+  els.servingsInput.addEventListener('input', updateServingsResult);
 
   els.foodsSearch.addEventListener('input', () => renderFoodsList(els.foodsSearch.value));
   els.foodsNewBtn.addEventListener('click', () => openFoodForm('foods'));
@@ -1211,6 +1354,7 @@ function bindEvents() {
   els.recipeEntryClose.addEventListener('click', closeRecipeEntryForm);
   els.recipeEntryCancel.addEventListener('click', closeRecipeEntryForm);
   els.recipeEntrySave.addEventListener('click', saveRecipeEntry);
+  els.recipeEntryServings.addEventListener('input', onRecipeEntryServingsChange);
 
   els.micBtn.addEventListener('click', startVoice);
   els.voiceClose.addEventListener('click', closeVoiceSheet);
