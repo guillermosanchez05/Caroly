@@ -735,6 +735,16 @@ function bindEvents() {
 
   els.listeningClose.addEventListener('click', cancelListening);
   els.listeningCancel.addEventListener('click', cancelListening);
+
+  // Touch feedback for list items (fallback for :active on iOS).
+  document.addEventListener('pointerdown', (event) => {
+    const item = event.target.closest('.food-item, .foods-item');
+    if (item) item.classList.add('is-pressed');
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) =>
+    document.addEventListener(type, () => {
+      document.querySelectorAll('.is-pressed').forEach((el) => el.classList.remove('is-pressed'));
+    }));
 }
 
 

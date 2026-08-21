@@ -67,7 +67,7 @@ export const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 
 ## Iconos
 
-Para regenerar los iconos:
+Los iconos de la aplicación se generan a partir de `icons/caroly-logo.png`:
 
 ```bash
 python3 scripts/generate-icons.py

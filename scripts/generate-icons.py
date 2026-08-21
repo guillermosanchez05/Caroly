@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
-"""Generate the PWA app icons (solid green square with a white "C" ring).
+"""Generate the PWA icons from the Caroly logo (icons/caroly-logo.png).
 
 Requires Pillow. Run from the project root:
     python3 scripts/generate-icons.py
 """
-from PIL import Image, ImageDraw
+from PIL import Image
 
-GREEN = (47, 125, 82, 255)  # #2f7d52
-WHITE = (255, 255, 255, 255)
+SOURCE = "icons/caroly-logo.png"
+
+OUTPUTS = {
+    "icons/icon-512.png": 512,
+    "icons/icon-192.png": 192,
+    "icons/apple-touch-icon.png": 180,
+}
 
 
-def make_icon(size: int) -> Image.Image:
-    img = Image.new("RGBA", (size, size), GREEN)
-    draw = ImageDraw.Draw(img)
-    margin = size * 0.22
-    box = [margin, margin, size - margin, size - margin]
-    width = int(size * 0.13)
-    # Arc from 45deg to 315deg leaves the right side open -> stylised "C".
-    draw.arc(box, start=45, end=315, fill=WHITE, width=width)
-    return img
+def main():
+    logo = Image.open(SOURCE).convert("RGB")
+    for path, size in OUTPUTS.items():
+        icon = logo.resize((size, size), Image.LANCZOS)
+        icon.save(path, optimize=True)
+        print(f"generated {path} ({size}x{size})")
 
 
 if __name__ == "__main__":
-    make_icon(192).save("icons/icon-192.png")
-    make_icon(512).save("icons/icon-512.png")
-    make_icon(180).save("icons/apple-touch-icon.png")
-    print("icons generated")
+    main()

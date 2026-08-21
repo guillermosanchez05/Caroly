@@ -1,11 +1,12 @@
 :root {
-  --bg: #f2f5f3;
+  --bg: #f7f2ec;
   --surface: #ffffff;
-  --text: #17211b;
-  --muted: #66736c;
-  --primary: #2f7d52;
-  --primary-dark: #266b44;
-  --border: #e3e8e5;
+  --text: #241b12;
+  --muted: #7d7266;
+  --primary: #ef7a1e;
+  --primary-dark: #d66912;
+  --primary-light: #ff9f53;
+  --border: #eae2d8;
   --danger: #c0392b;
   --protein: #d35400;
   --carbs: #8e44ad;
@@ -33,6 +34,37 @@ button {
   font: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+  transition: transform 0.08s ease, background-color 0.15s ease,
+    box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+button:active {
+  transform: scale(0.94);
+}
+
+.btn:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+.btn-primary:active {
+  background: var(--primary-dark);
+}
+
+.icon-btn:active {
+  transform: scale(0.86);
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
+.tab:active {
+  background: var(--bg);
+}
+
+.mic-btn:active {
+  transform: scale(0.92);
 }
 
 input {
@@ -45,7 +77,7 @@ input {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
   color: #fff;
   padding: calc(env(safe-area-inset-top) + 12px) 16px 18px;
   border-radius: 0 0 var(--radius) var(--radius);
@@ -141,9 +173,9 @@ input {
   display: inline-block;
 }
 
-.dot-protein { background: #ffb27a; }
-.dot-carbs { background: #d7a8f0; }
-.dot-fat { background: #ff9eb8; }
+.dot-protein { background: #ffe28a; }
+.dot-carbs { background: #e3c5ff; }
+.dot-fat { background: #ffbcd0; }
 
 /* ----- Meals ----- */
 
@@ -240,6 +272,7 @@ input {
 
 .entry-delete:active {
   color: var(--danger);
+  transform: scale(0.85);
 }
 
 .btn {
@@ -357,6 +390,14 @@ input {
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease, transform 0.08s ease;
+}
+
+.food-item:active,
+.food-item.is-pressed {
+  background-color: var(--bg);
+  transform: scale(0.98);
 }
 
 .food-name {
@@ -515,6 +556,15 @@ input:focus {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease, transform 0.08s ease;
+}
+
+.foods-item:active,
+.foods-item.is-pressed {
+  background-color: var(--bg);
+  transform: scale(0.98);
 }
 
 .foods-item-main {
@@ -576,7 +626,7 @@ input:focus {
   border-radius: 50%;
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(47, 125, 82, 0.4);
+  box-shadow: 0 4px 12px rgba(239, 122, 30, 0.4);
   cursor: pointer;
   display: flex;
   align-items: center;
