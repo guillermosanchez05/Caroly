@@ -1,3 +1,11 @@
+/* ============================================================================
+   Caroly — stylesheet
+   ----------------------------------------------------------------------------
+   Mobile-first, optimised for iOS Safari and standalone PWA. Uses CSS
+   variables for the warm orange theme and safe-area insets for notched
+   iPhones. All interactive elements have tactile :active feedback.
+   ============================================================================ */
+
 :root {
   --bg: #f7f2ec;
   --surface: #ffffff;

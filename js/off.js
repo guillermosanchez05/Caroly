@@ -2,11 +2,13 @@
 
 const OFF_API = 'https://world.openfoodfacts.org/api/v2/product';
 
+// Coerce a value to a non-negative number (0 when invalid).
 function sanitize(value) {
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+// Guess the product unit (g vs ml) from its declared quantity.
 function detectUnit(quantityText) {
   if (!quantityText) return 'g';
   return /ml\b/i.test(quantityText) ? 'ml' : 'g';

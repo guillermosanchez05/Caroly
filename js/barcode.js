@@ -18,6 +18,7 @@ hints.set(DecodeHintType.POSSIBLE_FORMATS, [
 
 let reader = null;
 
+// Lazily create the shared ZXing reader with food-barcode formats.
 function getReader() {
   if (!reader) reader = new BrowserMultiFormatReader(hints);
   return reader;

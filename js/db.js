@@ -1,7 +1,14 @@
-// IndexedDB persistence layer.
-// Two object stores:
-//   foods -> catalog of foods (keyPath: "name")
-//   days  -> one record per day (keyPath: "date")
+// ============================================================================
+// Caroly — IndexedDB persistence layer
+// ----------------------------------------------------------------------------
+// Three object stores:
+//   foods   -> catalog of foods (keyPath: "name")
+//   days    -> one record per day (keyPath: "date")
+//   recipes -> saved recipes (keyPath: "name")
+// Day records keep a snapshot of every entry (food name, quantity and
+// nutrition) so historical data stays stable even if the catalog changes.
+// Every transaction runs in its own read or read/write IndexedDB transaction.
+// ============================================================================
 
 import { INITIAL_FOODS } from './foods.js';
 import { oldestAllowedKey } from './utils.js';

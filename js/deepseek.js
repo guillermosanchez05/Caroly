@@ -5,6 +5,7 @@ const DEFAULT_MODEL = 'deepseek-v4-flash';
 
 let configCache = null;
 
+// Load the local config module, tolerating its absence.
 async function loadConfig() {
   if (!configCache) {
     try {
@@ -16,6 +17,7 @@ async function loadConfig() {
   return configCache;
 }
 
+// Read the API key from localStorage or fall back to config.js.
 function readApiKey(config) {
   try {
     const stored = localStorage.getItem('caroly.deepseekKey');
@@ -26,6 +28,7 @@ function readApiKey(config) {
   return config.DEEPSEEK_API_KEY || '';
 }
 
+// Build the prompt that teaches the model how to extract data.
 function buildSystemPrompt() {
   return [
     'Eres un asistente de nutrición. A partir de un texto en español en el que una persona describe lo que ha comido, extrae los alimentos, sus cantidades y las recetas.',

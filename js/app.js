@@ -1,4 +1,14 @@
-// UI layer: page navigation, day view, food catalog management and voice input.
+// ============================================================================
+// Caroly — UI layer
+// ----------------------------------------------------------------------------
+// Renders the interface and coordinates all the app flows:
+//   • Diary: the four meals, their entries and in-place editing.
+//   • Food catalog and recipes management (create / edit / delete).
+//   • Voice input (Web Speech API + DeepSeek parsing).
+//   • Barcode scanner (ZXing + Open Food Facts lookup).
+// Persistence lives in db.js, pure helpers in utils.js, and the external
+// services are wrapped in deepseek.js, off.js and barcode.js.
+// ============================================================================
 
 import {
   openDB,
@@ -26,8 +36,10 @@ import {
   round1,
 } from './utils.js';
 
+// Shortcut for document.getElementById.
 const $ = (id) => document.getElementById(id);
 
+// Reference to every DOM element the app needs to manipulate.
 const els = {
   pageDiary: $('page-diary'),
   pageFoods: $('page-foods'),
@@ -138,10 +150,12 @@ const els = {
   listeningCancel: $('listening-cancel'),
 };
 
+// Spanish weekday/month names used to format the date labels.
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
   'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
+// Mutable application state (current page, selected day, drafts, etc.).
 const state = {
   page: 'diary',
   currentDateKey: todayKey(),
@@ -169,6 +183,7 @@ const state = {
 
 init();
 
+// Boot the app: open the DB, prune old days, load foods and recipes and render.
 async function init() {
   await openDB();
   await cleanupOldDays(todayKey());
@@ -183,32 +198,38 @@ async function init() {
   }
 }
 
+// Create an empty day record with empty lists for every meal type.
 function emptyDay() {
   const meals = {};
   for (const type of MEAL_TYPES) meals[type] = [];
   return { date: state.currentDateKey, meals };
 }
 
+// Load the current day from IndexedDB (or create an empty one).
 async function loadDay() {
   const stored = await getDay(state.currentDateKey);
   state.day = stored || emptyDay();
 }
 
+// Flatten every meal entry of the current day into one list.
 function dayEntries() {
   const entries = [];
   for (const type of MEAL_TYPES) entries.push(...state.day.meals[type]);
   return entries;
 }
 
+// Convert a "YYYY-MM-DD" key into a local Date.
 function parseKey(key) {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
+// Uppercase the first character of a string.
 function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// Human label for a date key (Hoy, Ayer or the weekday).
 function formatDateLabel(key) {
   const today = todayKey();
   if (key === today) return 'Hoy';
@@ -216,27 +237,32 @@ function formatDateLabel(key) {
   return capitalize(WEEKDAYS[parseKey(key).getDay()]);
 }
 
+// Secondary date text, e.g. "19 de agosto".
 function formatDateSubtext(key) {
   const date = parseKey(key);
   return `${date.getDate()} de ${MONTHS[date.getMonth()]}`;
 }
 
+// Escape HTML-significant characters to avoid injection.
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
 
+// Generate a short unique id for diary entries.
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// Find a food in the catalog by name (or return null).
 function findFood(name) {
   return state.foods.find((f) => f.name === name) || null;
 }
 
 // ----- Pages -----
 
+// Show the selected tab page and render its content.
 function switchPage(page) {
   state.page = page;
   els.pageDiary.hidden = page !== 'diary';
@@ -253,12 +279,14 @@ function switchPage(page) {
 
 // ----- Rendering: diary -----
 
+// Re-render the whole diary view (header, summary and meals).
 function renderAll() {
   renderHeader();
   renderSummary();
   renderMeals();
 }
 
+// Update the date navigation and disable out-of-range arrows.
 function renderHeader() {
   const today = todayKey();
   const oldest = addDays(today, -6);
@@ -268,6 +296,7 @@ function renderHeader() {
   els.dateSubtext.textContent = formatDateSubtext(state.currentDateKey);
 }
 
+// Render the day totals: kcal and the three macronutrients.
 function renderSummary() {
   const totals = sumNutrition(dayEntries());
   els.summary.innerHTML = `
@@ -281,6 +310,7 @@ function renderSummary() {
     </div>`;
 }
 
+// Build the HTML for a single diary entry (food or recipe).
 function entryItem(type, entry) {
   const isRecipe = Array.isArray(entry.ingredients);
   return `
@@ -295,6 +325,7 @@ function entryItem(type, entry) {
     </li>`;
 }
 
+// Render the four meal cards with their food/recipe entries.
 function renderMeals() {
   els.meals.innerHTML = '';
   for (const type of MEAL_TYPES) {
@@ -327,17 +358,20 @@ function renderMeals() {
     }));
 }
 
+// Save the current day and prune records outside the 7-day window.
 async function persistDay() {
   await saveDay(state.day);
   await cleanupOldDays(todayKey());
 }
 
+// Delete an entry from a meal and persist the change.
 async function removeEntry(type, id) {
   state.day.meals[type] = state.day.meals[type].filter((e) => e.id !== id);
   await persistDay();
   renderAll();
 }
 
+// Move to the previous or next day within the 7-day window.
 async function navigate(delta) {
   const target = addDays(state.currentDateKey, delta);
   const today = todayKey();
@@ -350,6 +384,7 @@ async function navigate(delta) {
 
 // ----- Food picker -----
 
+// Open the food/recipe picker for a meal.
 function openPicker(type) {
   state.pickerTarget = type;
   state.pickerTab = 'alimentos';
@@ -362,10 +397,12 @@ function openPicker(type) {
   els.picker.hidden = false;
 }
 
+// Show or hide the Alimentos/Recetas tabs inside the picker.
 function showPickerTabs(show) {
   els.pickerTabs.hidden = !show;
 }
 
+// Switch the picker between foods and recipes.
 function setPickerTab(tab) {
   state.pickerTab = tab;
   document.querySelectorAll('.picker-tab').forEach((btn) =>
@@ -374,6 +411,7 @@ function setPickerTab(tab) {
   els.newFoodBtn.hidden = tab === 'recetas';
 }
 
+// Render the picker list according to the active tab.
 function renderPickerList(query) {
   if (state.pickerTab === 'recetas') {
     renderRecipePicker(query);
@@ -382,6 +420,7 @@ function renderPickerList(query) {
   }
 }
 
+// Render the filtered list of catalog foods.
 function renderFoodPicker(query) {
   const q = query.trim().toLowerCase();
   const filtered = state.foods.filter((f) => f.name.toLowerCase().includes(q));
@@ -401,6 +440,7 @@ function renderFoodPicker(query) {
   }
 }
 
+// Render the filtered list of saved recipes.
 function renderRecipePicker(query) {
   const q = query.trim().toLowerCase();
   const filtered = state.recipes.filter((r) => r.name.toLowerCase().includes(q));
@@ -423,6 +463,7 @@ function renderRecipePicker(query) {
 
 // ----- Servings entry -----
 
+// Open the servings sheet for a recipe.
 function openServings(recipe, fromPicker) {
   state.selectedRecipe = recipe;
   state.selectedServings = null;
@@ -439,6 +480,7 @@ function openServings(recipe, fromPicker) {
   els.servingsInput.select();
 }
 
+// Show the live totals for the chosen number of servings.
 function updateServingsResult() {
   const servings = parseFloat(els.servingsInput.value);
   const recipe = state.selectedRecipe;
@@ -450,6 +492,7 @@ function updateServingsResult() {
   els.servingsResult.textContent = `${data.kcal} kcal · P ${data.protein} · C ${data.carbs} · G ${data.fat}`;
 }
 
+// Add the recipe to the meal with the chosen servings.
 async function confirmServings() {
   const recipe = state.selectedRecipe;
   const servings = parseFloat(els.servingsInput.value);
@@ -465,6 +508,7 @@ async function confirmServings() {
   }
 }
 
+// Close the servings sheet and return to its origin.
 function closeServingsForm() {
   state.selectedRecipe = null;
   state.selectedServings = null;
@@ -479,6 +523,7 @@ function closeServingsForm() {
 
 // ----- Quantity entry -----
 
+// Open the quantity sheet for a food in the add flow.
 function openQuantity(food) {
   state.selectedFood = food;
   state.editingEntry = null;
@@ -494,6 +539,7 @@ function openQuantity(food) {
   els.quantityInput.focus();
 }
 
+// Open the quantity sheet pre-filled to edit an existing entry.
 function openQuantityEdit(type, entry) {
   state.selectedFood = null;
   state.editingEntry = { type, id: entry.id };
@@ -518,12 +564,14 @@ function openQuantityEdit(type, entry) {
   updateQuantityResult();
 }
 
+// Show the live nutrition preview for the entered quantity.
 function updateQuantityResult() {
   const quantity = parseFloat(els.quantityInput.value);
   const n = Number.isNaN(quantity) || quantity <= 0 ? null : nutritionForEntryOrFood(quantity);
   els.quantityResult.textContent = n ? `${n.kcal} kcal · P ${n.protein} · C ${n.carbs} · G ${n.fat}` : '';
 }
 
+// Compute preview nutrition when editing or adding.
 function nutritionForEntryOrFood(quantity) {
   if (state.editingEntry) {
     const { type, id } = state.editingEntry;
@@ -544,6 +592,7 @@ function nutritionForEntryOrFood(quantity) {
   return state.selectedFood ? nutritionForQuantity(state.selectedFood.per100, quantity) : null;
 }
 
+// Commit the quantity: update an entry, add a food or an ingredient.
 async function confirmQuantity() {
   const quantity = parseFloat(els.quantityInput.value);
   if (Number.isNaN(quantity) || quantity <= 0) return;
@@ -564,10 +613,12 @@ async function confirmQuantity() {
   renderAll();
 }
 
+// Compute nutrition and append a food entry to a meal.
 function addEntryToMeal(type, food, quantity) {
   pushEntryToMeal(type, entryDataFromFood(food, quantity));
 }
 
+// Build a food entry data object from a food and a quantity.
 function entryDataFromFood(food, quantity) {
   const n = nutritionForQuantity(food.per100, quantity);
   return {
@@ -581,10 +632,12 @@ function entryDataFromFood(food, quantity) {
   };
 }
 
+// Append an entry data object to a meal with a new id.
 function pushEntryToMeal(type, entryData) {
   state.day.meals[type].push({ id: uid(), ...entryData });
 }
 
+// Label an entry quantity (raciones for recipes, g/ml for foods).
 function entryQuantityLabel(entry) {
   if (Array.isArray(entry.ingredients)) {
     return entry.quantity === 1 ? '1 ración' : `${entry.quantity} raciones`;
@@ -592,6 +645,7 @@ function entryQuantityLabel(entry) {
   return `${entry.quantity} ${entry.unit}`;
 }
 
+// Build a single recipe entry from a recipe and a number of servings.
 function recipeEntryData(recipe, servings) {
   const scaled = recipe.ingredients.map((ing) => ({
     foodName: ing.foodName,
@@ -615,6 +669,7 @@ function recipeEntryData(recipe, servings) {
   };
 }
 
+// Recompute an entry values after its quantity changes.
 function updateEntryQuantity({ type, id }, quantity) {
   const entry = state.day.meals[type].find((e) => e.id === id);
   if (!entry) return;
@@ -635,12 +690,14 @@ function updateEntryQuantity({ type, id }, quantity) {
   entry.fat = n.fat;
 }
 
+// Clear the quantity/servings editing state.
 function resetQuantityForm() {
   state.editingEntry = null;
   state.selectedFood = null;
   els.quantityConfirm.textContent = 'Añadir';
 }
 
+// Close the quantity sheet depending on its context.
 function closeQuantityForm() {
   const wasEditing = !!state.editingEntry;
   const wasRecipe = !wasEditing && !!state.recipeDraft;
@@ -656,6 +713,7 @@ function closeQuantityForm() {
 
 // ----- Food form (add / edit) -----
 
+// Open the food form to add a new food.
 function openFoodForm(origin) {
   state.foodFormOrigin = origin;
   state.editingFood = null;
@@ -665,6 +723,7 @@ function openFoodForm(origin) {
   els.foodForm.hidden = false;
 }
 
+// Open the food form pre-filled to edit an existing food.
 function openFoodEdit(food) {
   state.foodFormOrigin = 'foods';
   state.editingFood = food;
@@ -679,21 +738,25 @@ function openFoodEdit(food) {
   els.foodForm.hidden = false;
 }
 
+// Check the radio button that matches a unit (g or ml).
 function setUnitRadio(unit) {
   const radio = document.querySelector(`input[name="unit"][value="${unit}"]`);
   if (radio) radio.checked = true;
 }
 
+// Clear the food form fields and its error message.
 function resetFoodForm() {
   els.newFoodForm.reset();
   els.foodFormError.hidden = true;
 }
 
+// Show an error message inside the food form.
 function showFoodError(message) {
   els.foodFormError.textContent = message;
   els.foodFormError.hidden = false;
 }
 
+// Save the food (add or update) and continue the current flow.
 async function submitFoodForm(event) {
   event.preventDefault();
 
@@ -739,12 +802,14 @@ async function submitFoodForm(event) {
   }
 }
 
+// Reload the food catalog from IndexedDB.
 async function refreshFoods() {
   state.foods = await listFoods();
 }
 
 // ----- Foods management page -----
 
+// Render the food management list filtered by the search box.
 function renderFoodsList(query) {
   const q = query.trim().toLowerCase();
   const filtered = state.foods.filter((f) => f.name.toLowerCase().includes(q));
@@ -772,6 +837,7 @@ function renderFoodsList(query) {
     btn.addEventListener('click', () => deleteFoodByName(btn.dataset.name)));
 }
 
+// Delete a food from the catalog after confirmation.
 async function deleteFoodByName(name) {
   if (!window.confirm(`¿Eliminar "${name}" del catálogo?`)) return;
   await deleteFood(name);
@@ -781,6 +847,7 @@ async function deleteFoodByName(name) {
 
 // ----- Recipes page -----
 
+// Render the recipe management list filtered by the search box.
 function renderRecipesList(query) {
   const q = query.trim().toLowerCase();
   const filtered = state.recipes.filter((r) => r.name.toLowerCase().includes(q));
@@ -815,6 +882,7 @@ function renderRecipesList(query) {
     btn.addEventListener('click', () => deleteRecipeByName(btn.dataset.name)));
 }
 
+// Delete a recipe after confirmation.
 async function deleteRecipeByName(name) {
   if (!window.confirm(`¿Eliminar la receta "${name}"?`)) return;
   await deleteRecipe(name);
@@ -824,6 +892,7 @@ async function deleteRecipeByName(name) {
 
 // ----- Recipe editor -----
 
+// Open the recipe editor for a new or an existing recipe.
 function openRecipeForm(existing) {
   state.editingRecipeName = existing ? existing.name : null;
   state.recipeDraft = {
@@ -837,6 +906,7 @@ function openRecipeForm(existing) {
   els.recipeForm.hidden = false;
 }
 
+// Close the recipe editor and discard the draft.
 function closeRecipeForm() {
   els.recipeForm.hidden = true;
   state.recipeDraft = null;
@@ -844,6 +914,7 @@ function closeRecipeForm() {
   if (state.page === 'recipes') renderRecipesList(els.recipesSearch.value);
 }
 
+// Render the ingredients of the recipe draft.
 function renderRecipeIngredients() {
   const list = els.recipeIngredients;
   list.innerHTML = '';
@@ -870,11 +941,13 @@ function renderRecipeIngredients() {
   });
 }
 
+// Show an error message inside the recipe form.
 function showRecipeError(message) {
   els.recipeFormError.textContent = message;
   els.recipeFormError.hidden = false;
 }
 
+// Save the recipe (add or update) to IndexedDB.
 async function saveRecipe() {
   if (!state.recipeDraft) return;
   const name = els.recipeName.value.trim();
@@ -903,6 +976,7 @@ async function saveRecipe() {
   }
 }
 
+// Open the picker to add an ingredient to the recipe draft.
 function openPickerForRecipe() {
   state.pickerTarget = null;
   state.pickerTab = 'alimentos';
@@ -915,6 +989,7 @@ function openPickerForRecipe() {
   els.picker.hidden = false;
 }
 
+// Return from the picker or quantity sheet to the recipe editor.
 function backToRecipeForm() {
   els.picker.hidden = true;
   els.quantityForm.hidden = true;
@@ -922,12 +997,14 @@ function backToRecipeForm() {
   renderRecipeIngredients();
 }
 
+// Append a computed ingredient to the recipe draft.
 function addIngredientToRecipeDraft(food, quantity) {
   state.recipeDraft.ingredients.push(entryDataFromFood(food, quantity));
 }
 
 // ----- Add recipe to a meal -----
 
+// Show the meal chooser for adding a recipe to the diary.
 function openRecipeMealSheet(recipeName, servings = 1) {
   els.recipeMealOptions.innerHTML = '';
   for (const type of MEAL_TYPES) {
@@ -942,12 +1019,14 @@ function openRecipeMealSheet(recipeName, servings = 1) {
   els.recipeMealSheet.hidden = false;
 }
 
+// Start the servings flow from the recipes page.
 function openServingsForRecipePage(recipeName) {
   const recipe = state.recipes.find((r) => r.name === recipeName);
   if (!recipe) return;
   openServings(recipe, false);
 }
 
+// Add a recipe as a single entry to a meal of the diary.
 async function addRecipeToMeal(recipeName, type, servings = 1) {
   const recipe = state.recipes.find((r) => r.name === recipeName);
   if (!recipe) return;
@@ -961,6 +1040,7 @@ async function addRecipeToMeal(recipeName, type, servings = 1) {
 
 // ----- Recipe entry editing (diary) -----
 
+// Open the diary recipe editor showing its ingredients.
 function openRecipeEntryEdit(type, entry) {
   state.editingRecipeEntry = { type, id: entry.id };
   state.recipeEntryDraft = {
@@ -987,6 +1067,7 @@ function openRecipeEntryEdit(type, entry) {
   els.recipeEntryForm.hidden = false;
 }
 
+// Render editable ingredient rows with live nutrition.
 function renderRecipeEntryIngredients() {
   const draft = state.recipeEntryDraft;
   const list = els.recipeEntryIngredients;
@@ -1031,6 +1112,7 @@ function renderRecipeEntryIngredients() {
   updateRecipeEntryTotal();
 }
 
+// Update the total shown in the diary recipe editor.
 function updateRecipeEntryTotal() {
   const draft = state.recipeEntryDraft;
   if (!draft) return;
@@ -1038,6 +1120,7 @@ function updateRecipeEntryTotal() {
   els.recipeEntryTotal.textContent = `${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat}`;
 }
 
+// Scale every ingredient when the servings change.
 function onRecipeEntryServingsChange() {
   const draft = state.recipeEntryDraft;
   if (!draft) return;
@@ -1061,6 +1144,7 @@ function onRecipeEntryServingsChange() {
   renderRecipeEntryIngredients();
 }
 
+// Persist the edited recipe entry back into the current day.
 async function saveRecipeEntry() {
   if (!state.editingRecipeEntry || !state.recipeEntryDraft) return;
   const { type, id } = state.editingRecipeEntry;
@@ -1090,6 +1174,7 @@ async function saveRecipeEntry() {
   renderAll();
 }
 
+// Close the diary recipe editor.
 function closeRecipeEntryForm() {
   els.recipeEntryForm.hidden = true;
   state.editingRecipeEntry = null;
@@ -1098,6 +1183,7 @@ function closeRecipeEntryForm() {
 
 // ----- Voice input -----
 
+// Create the speech recognition instance (with feature detection).
 function getRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) return null;
@@ -1108,6 +1194,7 @@ function getRecognition() {
   return recognition;
 }
 
+// Fill the voice review sheet meal selector.
 function populateMealSelect() {
   els.voiceMeal.innerHTML = '';
   for (const type of MEAL_TYPES) {
@@ -1119,18 +1206,22 @@ function populateMealSelect() {
   els.voiceMeal.value = 'comida';
 }
 
+// Toggle the mic button listening visual state.
 function toggleMicListening(on) {
   els.micBtn.classList.toggle('is-listening', on);
 }
 
+// Show the listening sheet with live transcript feedback.
 function openListeningSheet() {
   els.listeningSheet.hidden = false;
 }
 
+// Hide the listening sheet.
 function closeListeningSheet() {
   els.listeningSheet.hidden = true;
 }
 
+// Abort the current recognition and close the listening sheet.
 function cancelListening() {
   state.listening = false;
   toggleMicListening(false);
@@ -1141,6 +1232,7 @@ function cancelListening() {
   closeListeningSheet();
 }
 
+// Start speech recognition with live (interim) transcript feedback.
 function startVoice() {
   if (state.listening) return;
   const recognition = getRecognition();
@@ -1200,6 +1292,7 @@ function startVoice() {
   recognition.start();
 }
 
+// Send the transcript to DeepSeek and show the extracted items.
 async function handleVoiceTranscript(transcript) {
   closeListeningSheet();
   els.voiceTranscript.textContent = transcript;
@@ -1223,6 +1316,7 @@ async function handleVoiceTranscript(transcript) {
   }
 }
 
+// Turn the parsed JSON into diary-ready entry data objects.
 function normalizeVoiceItems(parsed) {
   const items = [];
   if (!parsed) return items;
@@ -1248,6 +1342,7 @@ function normalizeVoiceItems(parsed) {
   return items;
 }
 
+// Render the extracted items inside the voice review sheet.
 function renderVoiceItems(items) {
   els.voiceItems.innerHTML = '';
   if (items.length === 0) {
@@ -1268,19 +1363,23 @@ function renderVoiceItems(items) {
   }
 }
 
+// Show an error message in the voice review sheet.
 function showVoiceError(message) {
   els.voiceError.textContent = message;
   els.voiceError.hidden = false;
 }
 
+// Show the voice review sheet.
 function openVoiceSheet() {
   els.voiceSheet.hidden = false;
 }
 
+// Hide the voice review sheet.
 function closeVoiceSheet() {
   els.voiceSheet.hidden = true;
 }
 
+// Add all voice-extracted items to the chosen meal.
 async function confirmVoice() {
   const type = els.voiceMeal.value;
   if (state.voiceItems.length === 0) return;
@@ -1294,6 +1393,7 @@ async function confirmVoice() {
 
 // ----- Settings -----
 
+// Pre-fill the settings input with the stored API key.
 function loadSettingsKey() {
   try {
     els.settingsKey.value = localStorage.getItem('caroly.deepseekKey') || '';
@@ -1303,6 +1403,7 @@ function loadSettingsKey() {
   els.settingsStatus.textContent = '';
 }
 
+// Save or remove the DeepSeek API key in localStorage.
 function saveSettings() {
   const key = els.settingsKey.value.trim();
   try {
@@ -1320,6 +1421,7 @@ function saveSettings() {
 
 // ----- Barcode scanning -----
 
+// Open the barcode scanner sheet and start the camera.
 function openScanner() {
   stopScanner();
   els.scanStatus.textContent = 'Enfoca el código de barras del producto.';
@@ -1331,6 +1433,7 @@ function openScanner() {
     });
 }
 
+// Stop the scanner and release the camera stream.
 function stopScanner() {
   if (state.scannerStop) {
     try { state.scannerStop(); } catch { /* ignore */ }
@@ -1339,16 +1442,19 @@ function stopScanner() {
   els.scanVideo.srcObject = null;
 }
 
+// Close the barcode scanner sheet.
 function closeScanner() {
   stopScanner();
   els.scanForm.hidden = true;
 }
 
+// Called when a barcode is read; look it up and continue the flow.
 function onScanned(barcode) {
   stopScanner();
   lookupBarcode(barcode);
 }
 
+// Decode a barcode from a captured photo (fallback).
 async function onScanFileChosen() {
   const file = els.scanFile.files && els.scanFile.files[0];
   els.scanFile.value = '';
@@ -1367,6 +1473,7 @@ async function onScanFileChosen() {
   }
 }
 
+// Look the barcode up in Open Food Facts and route the result.
 async function lookupBarcode(barcode) {
   els.scanStatus.textContent = `Buscando ${barcode}…`;
   let product = null;
@@ -1383,6 +1490,7 @@ async function lookupBarcode(barcode) {
   openScanPreview(product);
 }
 
+// Show the editable product preview sheet.
 function openScanPreview(product) {
   els.previewBrands.textContent = product.brands ? `Marca: ${product.brands}` : '';
   els.previewName.value = product.name;
@@ -1397,15 +1505,18 @@ function openScanPreview(product) {
   els.scanPreview.hidden = false;
 }
 
+// Close the product preview sheet.
 function closeScanPreview() {
   els.scanPreview.hidden = true;
 }
 
+// Show an error message inside the product preview.
 function showPreviewError(message) {
   els.previewError.textContent = message;
   els.previewError.hidden = false;
 }
 
+// Save the scanned product into the local food catalog.
 async function saveScanPreview() {
   const name = els.previewName.value.trim();
   const unit = document.querySelector('input[name="preview-unit"]:checked').value;
@@ -1444,6 +1555,7 @@ async function saveScanPreview() {
   }
 }
 
+// Open the manual food form pre-filled with a name.
 function openManualFoodForm(name) {
   openFoodForm('foods');
   els.foodName.value = name;
@@ -1451,6 +1563,7 @@ function openManualFoodForm(name) {
 
 // ----- Overlay helpers -----
 
+// Hide every overlay and reset their related state.
 function closeAllOverlays() {
   resetQuantityForm();
   state.selectedRecipe = null;
@@ -1461,6 +1574,7 @@ function closeAllOverlays() {
   });
 }
 
+// Return to the picker from the quantity or servings sheets.
 function backToPicker() {
   resetQuantityForm();
   els.foodForm.hidden = true;
@@ -1470,6 +1584,7 @@ function backToPicker() {
   renderPickerList(els.pickerSearch.value);
 }
 
+// Handle closing the food form depending on the context.
 function afterFoodFormClose() {
   els.foodForm.hidden = true;
   if (state.page === 'foods') {
@@ -1481,6 +1596,7 @@ function afterFoodFormClose() {
 
 // ----- Event bindings -----
 
+// Attach all event listeners used across the app.
 function bindEvents() {
   document.querySelectorAll('.tab').forEach((tab) =>
     tab.addEventListener('click', () => switchPage(tab.dataset.page)));
