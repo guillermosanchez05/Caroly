@@ -6,6 +6,7 @@ PWA personal de registro de comidas, calorías y macronutrientes (proteínas, hi
 - Persistencia en IndexedDB.
 - Retención de datos de los últimos 7 días (limpieza automática al iniciar).
 - Base de datos de alimentos con valores por 100 g/ml y página para gestionarlos (añadir, editar y eliminar).
+- Recetas formadas por alimentos del catálogo: crear, editar, añadir al diario (también por voz).
 - Entrada por voz: dictado → interpretación con DeepSeek → añadir alimentos.
 - Funciona sin conexión tras la primera carga (excepto el dictado y la interpretación, que requieren internet).
 
@@ -34,7 +35,7 @@ funcionará sin conexión tras la primera carga.
 ## Entrada por voz (DeepSeek)
 
 El botón de micrófono (abajo a la derecha) dicta lo que dices, lo muestra y usa
-la API de DeepSeek para extraer los alimentos y añadirlos al día.
+la API de DeepSeek para extraer los alimentos y recetas y añadirlos al día.
 
 Requisitos:
 - Conexión a internet (el dictado y la interpretación no funcionan offline).

@@ -6,6 +6,10 @@ import {
   addFood,
   updateFood,
   deleteFood,
+  listRecipes,
+  addRecipe,
+  updateRecipe,
+  deleteRecipe,
   getDay,
   saveDay,
   cleanupOldDays,
@@ -34,6 +38,22 @@ const els = {
   foodsSearch: $('foods-search'),
   foodsNewBtn: $('foods-new-btn'),
   foodsList: $('foods-list'),
+  pageRecipes: $('page-recipes'),
+  recipesSearch: $('recipes-search'),
+  recipesNewBtn: $('recipes-new-btn'),
+  recipesList: $('recipes-list'),
+  recipeForm: $('recipe-form'),
+  recipeFormTitle: $('recipe-form-title'),
+  recipeFormClose: $('recipe-form-close'),
+  recipeFormCancel: $('recipe-form-cancel'),
+  recipeFormSave: $('recipe-form-save'),
+  recipeName: $('recipe-name'),
+  recipeIngredients: $('recipe-ingredients'),
+  recipeAddIngredient: $('recipe-add-ingredient'),
+  recipeFormError: $('recipe-form-error'),
+  recipeMealSheet: $('recipe-meal-sheet'),
+  recipeMealOptions: $('recipe-meal-options'),
+  recipeMealClose: $('recipe-meal-close'),
   picker: $('picker'),
   pickerTitle: $('picker-title'),
   pickerClose: $('picker-close'),
@@ -88,6 +108,7 @@ const state = {
   page: 'diary',
   currentDateKey: todayKey(),
   foods: [],
+  recipes: [],
   day: null,
   pickerTarget: null,
   selectedFood: null,
@@ -95,6 +116,9 @@ const state = {
   foodFormOrigin: 'picker',
   voiceItems: [],
   editingEntry: null,
+  recipeDraft: null,
+  editingRecipeName: null,
+  recipeMealTarget: null,
   listening: false,
   recognition: null,
 };
@@ -105,6 +129,7 @@ async function init() {
   await openDB();
   await cleanupOldDays(todayKey());
   state.foods = await listFoods();
+  state.recipes = await listRecipes();
   populateMealSelect();
   await loadDay();
   renderAll();
@@ -172,10 +197,13 @@ function switchPage(page) {
   state.page = page;
   els.pageDiary.hidden = page !== 'diary';
   els.pageFoods.hidden = page !== 'foods';
+  els.pageRecipes.hidden = page !== 'recipes';
   els.pageSettings.hidden = page !== 'settings';
   document.querySelectorAll('.tab').forEach((tab) =>
     tab.classList.toggle('is-active', tab.dataset.page === page));
+  if (page === 'diary') renderAll();
   if (page === 'foods') renderFoodsList(els.foodsSearch.value);
+  if (page === 'recipes') renderRecipesList(els.recipesSearch.value);
   if (page === 'settings') loadSettingsKey();
 }
 
@@ -375,6 +403,10 @@ async function confirmQuantity() {
 
   if (state.editingEntry) {
     updateEntryQuantity(state.editingEntry, quantity);
+  } else if (state.recipeDraft && state.selectedFood) {
+    addIngredientToRecipeDraft(state.selectedFood, quantity);
+    backToRecipeForm();
+    return;
   } else if (state.selectedFood) {
     addEntryToMeal(state.pickerTarget, state.selectedFood, quantity);
   } else {
@@ -386,9 +418,12 @@ async function confirmQuantity() {
 }
 
 function addEntryToMeal(type, food, quantity) {
+  pushEntryToMeal(type, entryDataFromFood(food, quantity));
+}
+
+function entryDataFromFood(food, quantity) {
   const n = nutritionForQuantity(food.per100, quantity);
-  state.day.meals[type].push({
-    id: uid(),
+  return {
     foodName: food.name,
     quantity: round1(quantity),
     unit: food.unit,
@@ -396,7 +431,11 @@ function addEntryToMeal(type, food, quantity) {
     protein: n.protein,
     carbs: n.carbs,
     fat: n.fat,
-  });
+  };
+}
+
+function pushEntryToMeal(type, entryData) {
+  state.day.meals[type].push({ id: uid(), ...entryData });
 }
 
 function updateEntryQuantity({ type, id }, quantity) {
@@ -427,9 +466,12 @@ function resetQuantityForm() {
 
 function closeQuantityForm() {
   const wasEditing = !!state.editingEntry;
+  const wasRecipe = !wasEditing && !!state.recipeDraft;
   resetQuantityForm();
   if (wasEditing) {
     closeAllOverlays();
+  } else if (wasRecipe) {
+    backToRecipeForm();
   } else {
     backToPicker();
   }
@@ -560,6 +602,178 @@ async function deleteFoodByName(name) {
   renderFoodsList(els.foodsSearch.value);
 }
 
+// ----- Recipes page -----
+
+function renderRecipesList(query) {
+  const q = query.trim().toLowerCase();
+  const filtered = state.recipes.filter((r) => r.name.toLowerCase().includes(q));
+  els.recipesList.innerHTML = '';
+  if (filtered.length === 0) {
+    els.recipesList.innerHTML = '<li class="empty">Sin recetas</li>';
+    return;
+  }
+  for (const recipe of filtered) {
+    const totals = sumNutrition(recipe.ingredients);
+    const li = document.createElement('li');
+    li.className = 'foods-item';
+    li.innerHTML = `
+      <div class="foods-item-main">
+        <div class="food-name">${escapeHtml(recipe.name)}</div>
+        <div class="food-per100">${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat} · ${recipe.ingredients.length} ingred.</div>
+      </div>
+      <div class="recipe-actions">
+        <button class="btn btn-primary recipe-add" data-name="${escapeHtml(recipe.name)}" type="button" aria-label="Añadir al diario">＋</button>
+        <button class="foods-item-delete" data-name="${escapeHtml(recipe.name)}" aria-label="Eliminar">🗑</button>
+      </div>`;
+    li.addEventListener('click', (e) => {
+      if (e.target.closest('.recipe-add')) return;
+      if (e.target.closest('.foods-item-delete')) return;
+      openRecipeForm(recipe);
+    });
+    els.recipesList.appendChild(li);
+  }
+  els.recipesList.querySelectorAll('.recipe-add').forEach((btn) =>
+    btn.addEventListener('click', () => openRecipeMealSheet(btn.dataset.name)));
+  els.recipesList.querySelectorAll('.foods-item-delete').forEach((btn) =>
+    btn.addEventListener('click', () => deleteRecipeByName(btn.dataset.name)));
+}
+
+async function deleteRecipeByName(name) {
+  if (!window.confirm(`¿Eliminar la receta "${name}"?`)) return;
+  await deleteRecipe(name);
+  state.recipes = await listRecipes();
+  renderRecipesList(els.recipesSearch.value);
+}
+
+// ----- Recipe editor -----
+
+function openRecipeForm(existing) {
+  state.editingRecipeName = existing ? existing.name : null;
+  state.recipeDraft = {
+    name: existing ? existing.name : '',
+    ingredients: existing ? existing.ingredients.map((i) => ({ ...i })) : [],
+  };
+  els.recipeFormTitle.textContent = existing ? 'Editar receta' : 'Nueva receta';
+  els.recipeName.value = state.recipeDraft.name;
+  els.recipeFormError.hidden = true;
+  renderRecipeIngredients();
+  els.recipeForm.hidden = false;
+}
+
+function closeRecipeForm() {
+  els.recipeForm.hidden = true;
+  state.recipeDraft = null;
+  state.editingRecipeName = null;
+  if (state.page === 'recipes') renderRecipesList(els.recipesSearch.value);
+}
+
+function renderRecipeIngredients() {
+  const list = els.recipeIngredients;
+  list.innerHTML = '';
+  if (!state.recipeDraft) return;
+  if (state.recipeDraft.ingredients.length === 0) {
+    list.innerHTML = '<li class="empty">Sin ingredientes</li>';
+    return;
+  }
+  state.recipeDraft.ingredients.forEach((ing, index) => {
+    const li = document.createElement('li');
+    li.className = 'entry';
+    li.innerHTML = `
+      <div class="entry-main">
+        <span class="entry-name">${escapeHtml(ing.foodName)}</span>
+        <span class="entry-qty">${ing.quantity} ${ing.unit}</span>
+      </div>
+      <div class="entry-nutrition">${ing.kcal} kcal · P ${ing.protein} · C ${ing.carbs} · G ${ing.fat}</div>
+      <button class="entry-delete" data-index="${index}" type="button" aria-label="Quitar ingrediente">✕</button>`;
+    li.querySelector('.entry-delete').addEventListener('click', () => {
+      state.recipeDraft.ingredients.splice(index, 1);
+      renderRecipeIngredients();
+    });
+    list.appendChild(li);
+  });
+}
+
+function showRecipeError(message) {
+  els.recipeFormError.textContent = message;
+  els.recipeFormError.hidden = false;
+}
+
+async function saveRecipe() {
+  if (!state.recipeDraft) return;
+  const name = els.recipeName.value.trim();
+  if (!name) {
+    showRecipeError('Introduce un nombre.');
+    return;
+  }
+  if (state.recipeDraft.ingredients.length === 0) {
+    showRecipeError('Añade al menos un ingrediente.');
+    return;
+  }
+  const recipe = { name, ingredients: state.recipeDraft.ingredients };
+  try {
+    if (state.editingRecipeName) {
+      await updateRecipe(state.editingRecipeName, recipe);
+    } else {
+      await addRecipe(recipe);
+    }
+    state.recipes = await listRecipes();
+    els.recipeForm.hidden = true;
+    state.recipeDraft = null;
+    state.editingRecipeName = null;
+    renderRecipesList(els.recipesSearch.value);
+  } catch (err) {
+    showRecipeError(err.message);
+  }
+}
+
+function openPickerForRecipe() {
+  state.pickerTarget = null;
+  els.pickerTitle.textContent = 'Añadir ingrediente';
+  els.pickerSearch.value = '';
+  renderPickerList('');
+  els.recipeForm.hidden = true;
+  els.picker.hidden = false;
+}
+
+function backToRecipeForm() {
+  els.picker.hidden = true;
+  els.quantityForm.hidden = true;
+  els.recipeForm.hidden = false;
+  renderRecipeIngredients();
+}
+
+function addIngredientToRecipeDraft(food, quantity) {
+  state.recipeDraft.ingredients.push(entryDataFromFood(food, quantity));
+}
+
+// ----- Add recipe to a meal -----
+
+function openRecipeMealSheet(recipeName) {
+  state.recipeMealTarget = recipeName;
+  els.recipeMealOptions.innerHTML = '';
+  for (const type of MEAL_TYPES) {
+    const btn = document.createElement('button');
+    btn.className = 'btn meal-option';
+    btn.type = 'button';
+    btn.textContent = MEAL_LABELS[type];
+    btn.addEventListener('click', () => addRecipeToMeal(recipeName, type));
+    els.recipeMealOptions.appendChild(btn);
+  }
+  els.recipeMealSheet.hidden = false;
+}
+
+async function addRecipeToMeal(recipeName, type) {
+  const recipe = state.recipes.find((r) => r.name === recipeName);
+  if (!recipe) return;
+  for (const ingredient of recipe.ingredients) {
+    pushEntryToMeal(type, { ...ingredient });
+  }
+  await persistDay();
+  els.recipeMealSheet.hidden = true;
+  if (state.page !== 'diary') switchPage('diary');
+  renderAll();
+}
+
 // ----- Voice input -----
 
 function getRecognition() {
@@ -673,7 +887,7 @@ async function handleVoiceTranscript(transcript) {
   openVoiceSheet();
 
   try {
-    const parsed = await extractFoodsFromText(transcript, state.foods);
+    const parsed = await extractFoodsFromText(transcript, state.foods, state.recipes);
     const items = normalizeVoiceItems(parsed);
     state.voiceItems = items;
     if (parsed && MEAL_TYPES.includes(parsed.meal)) {
@@ -689,32 +903,54 @@ async function handleVoiceTranscript(transcript) {
 
 function normalizeVoiceItems(parsed) {
   const items = [];
-  if (!parsed || !Array.isArray(parsed.items)) return items;
-  for (const item of parsed.items) {
-    const food = findFood(item.foodName);
-    const quantity = parseFloat(item.quantity);
-    if (!food || Number.isNaN(quantity) || quantity <= 0) continue;
-    items.push({ food, quantity: round1(quantity) });
+  if (!parsed) return items;
+
+  if (Array.isArray(parsed.items)) {
+    for (const item of parsed.items) {
+      const food = findFood(item.foodName);
+      const quantity = parseFloat(item.quantity);
+      if (!food || Number.isNaN(quantity) || quantity <= 0) continue;
+      items.push(entryDataFromFood(food, quantity));
+    }
   }
+
+  if (Array.isArray(parsed.recipes)) {
+    for (const r of parsed.recipes) {
+      const recipe = state.recipes.find((x) => x.name === r.recipeName);
+      if (!recipe) continue;
+      const servings = Math.max(parseFloat(r.servings) || 1, 0.1);
+      for (const ing of recipe.ingredients) {
+        items.push({
+          foodName: ing.foodName,
+          quantity: round1(ing.quantity * servings),
+          unit: ing.unit,
+          kcal: round1(ing.kcal * servings),
+          protein: round1(ing.protein * servings),
+          carbs: round1(ing.carbs * servings),
+          fat: round1(ing.fat * servings),
+        });
+      }
+    }
+  }
+
   return items;
 }
 
 function renderVoiceItems(items) {
   els.voiceItems.innerHTML = '';
   if (items.length === 0) {
-    els.voiceItems.innerHTML = '<li class="empty">No he encontrado alimentos del catálogo en el texto.</li>';
+    els.voiceItems.innerHTML = '<li class="empty">No he encontrado alimentos ni recetas en el texto.</li>';
     return;
   }
   for (const item of items) {
-    const n = nutritionForQuantity(item.food.per100, item.quantity);
     const li = document.createElement('li');
     li.className = 'entry';
     li.innerHTML = `
       <div class="entry-main">
-        <span class="entry-name">${escapeHtml(item.food.name)}</span>
-        <span class="entry-qty">${item.quantity} ${item.food.unit}</span>
+        <span class="entry-name">${escapeHtml(item.foodName)}</span>
+        <span class="entry-qty">${item.quantity} ${item.unit}</span>
       </div>
-      <div class="entry-nutrition">${n.kcal} kcal · P ${n.protein} · C ${n.carbs} · G ${n.fat}</div>`;
+      <div class="entry-nutrition">${item.kcal} kcal · P ${item.protein} · C ${item.carbs} · G ${item.fat}</div>`;
     els.voiceItems.appendChild(li);
   }
 }
@@ -736,7 +972,7 @@ async function confirmVoice() {
   const type = els.voiceMeal.value;
   if (state.voiceItems.length === 0) return;
   for (const item of state.voiceItems) {
-    addEntryToMeal(type, item.food, item.quantity);
+    pushEntryToMeal(type, item);
   }
   await persistDay();
   closeVoiceSheet();
@@ -804,7 +1040,10 @@ function bindEvents() {
   els.prevDay.addEventListener('click', () => navigate(-1));
   els.nextDay.addEventListener('click', () => navigate(1));
 
-  els.pickerClose.addEventListener('click', closeAllOverlays);
+  els.pickerClose.addEventListener('click', () => {
+    if (state.recipeDraft) backToRecipeForm();
+    else closeAllOverlays();
+  });
   els.pickerSearch.addEventListener('input', () => renderPickerList(els.pickerSearch.value));
   els.newFoodBtn.addEventListener('click', () => openFoodForm('picker'));
 
@@ -819,6 +1058,14 @@ function bindEvents() {
 
   els.foodsSearch.addEventListener('input', () => renderFoodsList(els.foodsSearch.value));
   els.foodsNewBtn.addEventListener('click', () => openFoodForm('foods'));
+
+  els.recipesSearch.addEventListener('input', () => renderRecipesList(els.recipesSearch.value));
+  els.recipesNewBtn.addEventListener('click', () => openRecipeForm(null));
+  els.recipeFormClose.addEventListener('click', closeRecipeForm);
+  els.recipeFormCancel.addEventListener('click', closeRecipeForm);
+  els.recipeFormSave.addEventListener('click', saveRecipe);
+  els.recipeAddIngredient.addEventListener('click', openPickerForRecipe);
+  els.recipeMealClose.addEventListener('click', () => { els.recipeMealSheet.hidden = true; });
 
   els.micBtn.addEventListener('click', startVoice);
   els.voiceClose.addEventListener('click', closeVoiceSheet);

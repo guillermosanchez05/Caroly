@@ -7,9 +7,10 @@ import { INITIAL_FOODS } from './foods.js';
 import { oldestAllowedKey } from './utils.js';
 
 const DB_NAME = 'caroly';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const FOODS_STORE = 'foods';
 const DAYS_STORE = 'days';
+const RECIPES_STORE = 'recipes';
 
 let dbPromise = null;
 
@@ -42,6 +43,9 @@ export function openDB() {
       }
       if (!db.objectStoreNames.contains(DAYS_STORE)) {
         db.createObjectStore(DAYS_STORE, { keyPath: 'date' });
+      }
+      if (!db.objectStoreNames.contains(RECIPES_STORE)) {
+        db.createObjectStore(RECIPES_STORE, { keyPath: 'name' });
       }
     };
 
@@ -149,5 +153,60 @@ export async function deleteFood(name) {
   const db = await openDB();
   const tx = db.transaction(FOODS_STORE, 'readwrite');
   tx.objectStore(FOODS_STORE).delete(name);
+  await txDone(tx);
+}
+
+// ----- Recipes -----
+
+/** List all recipes, sorted by name (Spanish locale). */
+export async function listRecipes() {
+  const db = await openDB();
+  const tx = db.transaction(RECIPES_STORE, 'readonly');
+  const recipes = await requestAsPromise(tx.objectStore(RECIPES_STORE).getAll());
+  recipes.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return recipes;
+}
+
+/** Add a new recipe (throws if the name already exists). */
+export async function addRecipe(recipe) {
+  const db = await openDB();
+
+  const readTx = db.transaction(RECIPES_STORE, 'readonly');
+  const existing = await requestAsPromise(readTx.objectStore(RECIPES_STORE).get(recipe.name));
+  if (existing) {
+    throw new Error(`The recipe "${recipe.name}" already exists.`);
+  }
+
+  const writeTx = db.transaction(RECIPES_STORE, 'readwrite');
+  writeTx.objectStore(RECIPES_STORE).add(recipe);
+  await txDone(writeTx);
+  return recipe;
+}
+
+/** Update an existing recipe (handles renaming). */
+export async function updateRecipe(oldName, recipe) {
+  const db = await openDB();
+
+  if (oldName !== recipe.name) {
+    const readTx = db.transaction(RECIPES_STORE, 'readonly');
+    const existing = await requestAsPromise(readTx.objectStore(RECIPES_STORE).get(recipe.name));
+    if (existing) {
+      throw new Error(`The recipe "${recipe.name}" already exists.`);
+    }
+  }
+
+  const writeTx = db.transaction(RECIPES_STORE, 'readwrite');
+  const store = writeTx.objectStore(RECIPES_STORE);
+  if (oldName !== recipe.name) store.delete(oldName);
+  store.put(recipe);
+  await txDone(writeTx);
+  return recipe;
+}
+
+/** Delete a recipe. */
+export async function deleteRecipe(name) {
+  const db = await openDB();
+  const tx = db.transaction(RECIPES_STORE, 'readwrite');
+  tx.objectStore(RECIPES_STORE).delete(name);
   await txDone(tx);
 }

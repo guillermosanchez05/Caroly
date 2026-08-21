@@ -28,25 +28,27 @@ function readApiKey(config) {
 
 function buildSystemPrompt() {
   return [
-    'Eres un asistente de nutrición. A partir de un texto en español en el que una persona describe lo que ha comido, extrae los alimentos y sus cantidades.',
+    'Eres un asistente de nutrición. A partir de un texto en español en el que una persona describe lo que ha comido, extrae los alimentos, sus cantidades y las recetas.',
     '',
     'Reglas:',
-    '- Usa SOLO alimentos que aparezcan en el catálogo proporcionado (el nombre debe coincidir exactamente con el del catálogo).',
-    '- Si el texto menciona un alimento que no está en el catálogo, ignóralo.',
-    '- La cantidad debe expresarse en la unidad indicada para cada alimento (g o ml).',
+    '- Usa SOLO alimentos que aparezcan en el catálogo de alimentos (nombre exacto).',
+    '- Usa SOLO recetas que aparezcan en el catálogo de recetas (nombre exacto).',
+    '- Si el texto menciona algo que no está en ninguno de los dos catálogos, ignóralo.',
+    '- La cantidad de un alimento debe expresarse en la unidad indicada para cada alimento (g o ml).',
     '- Si la persona da una cantidad explícita, úsala. Si dice "un/una", "dos", "medio/a", etc. sin cantidad, estima un tamaño de ración típico en gramos o mililitros.',
+    '- Para las recetas, indica el número de porciones en "servings" (puede ser decimal, p. ej. 0.5 para media ración). Si no se indica, usa 1.',
     '- Detecta la comida a la que pertenece (desayuno, comida, merienda o cena) por palabras como "desayuno", "comida", "cena", "merienda", o por la hora. Si no está claro, usa "comida".',
     '- Devuelve ÚNICAMENTE un objeto JSON con este formato exacto:',
-    '  {"meal": "desayuno|comida|merienda|cena", "items": [{"foodName": "nombre del catálogo", "quantity": 100}]}',
-    '- Si no hay ningún alimento del catálogo en el texto, devuelve {"meal": "comida", "items": []}.',
+    '  {"meal": "desayuno|comida|merienda|cena", "items": [{"foodName": "nombre del alimento", "quantity": 100}], "recipes": [{"recipeName": "nombre de la receta", "servings": 1}]}',
+    '- Si no hay nada reconocible, devuelve {"meal": "comida", "items": [], "recipes": []}.',
   ].join('\n');
 }
 
 /**
- * Extract foods from free text.
- * Returns a promise resolving to { meal, items: [{foodName, quantity}] }.
+ * Extract foods and recipes from free text.
+ * Returns a promise resolving to { meal, items: [{foodName, quantity}], recipes: [{recipeName, servings}] }.
  */
-export async function extractFoodsFromText(text, foods) {
+export async function extractFoodsFromText(text, foods, recipes = []) {
   const config = await loadConfig();
   const apiKey = readApiKey(config);
   if (!apiKey) {
@@ -55,7 +57,8 @@ export async function extractFoodsFromText(text, foods) {
   const model = config.DEEPSEEK_MODEL || DEFAULT_MODEL;
 
   const catalog = foods.map((f) => `${f.name} (unidad: ${f.unit})`).join('\n');
-  const userPrompt = `Catálogo de alimentos disponibles:\n${catalog}\n\nTexto del usuario:\n"${text}"`;
+  const recipeCatalog = recipes.map((r) => r.name).join('\n');
+  const userPrompt = `Catálogo de alimentos disponibles:\n${catalog}\n\nCatálogo de recetas disponibles:\n${recipeCatalog}\n\nTexto del usuario:\n"${text}"`;
 
   const response = await fetch(ENDPOINT, {
     method: 'POST',

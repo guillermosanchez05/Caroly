@@ -563,6 +563,25 @@ input:focus {
   padding: 16px;
 }
 
+.recipe-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.recipe-add {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+.meal-option {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .foods-item {
   background: var(--surface);
   border-radius: 14px;

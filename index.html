@@ -44,6 +44,18 @@
     <ul id="foods-list" class="foods-manage-list"></ul>
   </section>
 
+  <!-- Recipes page -->
+  <section id="page-recipes" class="page" hidden>
+    <header class="app-header recipes-header">
+      <h1 class="page-title">Recetas</h1>
+      <div class="sheet-toolbar foods-toolbar">
+        <input id="recipes-search" type="search" placeholder="Buscar receta..." autocomplete="off" />
+        <button id="recipes-new-btn" class="btn btn-primary" type="button">＋ Nueva</button>
+      </div>
+    </header>
+    <ul id="recipes-list" class="foods-manage-list"></ul>
+  </section>
+
   <!-- Settings page -->
   <section id="page-settings" class="page" hidden>
     <header class="app-header settings-header">
@@ -142,6 +154,41 @@
     </div>
   </section>
 
+  <!-- Recipe editor -->
+  <section id="recipe-form" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2 id="recipe-form-title">Nueva receta</h2>
+        <button class="icon-btn" id="recipe-form-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <label class="field">
+          <span>Nombre</span>
+          <input id="recipe-name" type="text" autocomplete="off" />
+        </label>
+        <p class="hint">Ingredientes (los valores se calculan según el catálogo):</p>
+        <ul id="recipe-ingredients" class="entry-list"></ul>
+        <p id="recipe-form-error" class="error" hidden></p>
+        <button type="button" class="btn add-entry" id="recipe-add-ingredient">＋ Añadir ingrediente</button>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="recipe-form-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="recipe-form-save">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recipe meal chooser -->
+  <section id="recipe-meal-sheet" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2>Añadir receta a…</h2>
+        <button class="icon-btn" id="recipe-meal-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body" id="recipe-meal-options"></div>
+    </div>
+  </section>
+
   <!-- Listening sheet -->
   <section id="listening-sheet" class="overlay" hidden>
     <div class="sheet">
@@ -193,6 +240,7 @@
   <nav class="tabbar">
     <button class="tab is-active" data-page="diary" type="button">📅 Diario</button>
     <button class="tab" data-page="foods" type="button">🥗 Alimentos</button>
+    <button class="tab" data-page="recipes" type="button">📋 Recetas</button>
     <button class="tab" data-page="settings" type="button">⚙️ Ajustes</button>
   </nav>
 
