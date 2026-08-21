@@ -582,6 +582,17 @@ input:focus {
   margin-bottom: 8px;
 }
 
+.ingredient-qty {
+  width: 96px;
+  min-height: 38px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  margin: 4px 0;
+  font: inherit;
+}
+
 .foods-item {
   background: var(--surface);
   border-radius: 14px;

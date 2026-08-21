@@ -189,6 +189,25 @@
     </div>
   </section>
 
+  <!-- Recipe entry editor (diary) -->
+  <section id="recipe-entry-form" class="overlay" hidden>
+    <div class="sheet">
+      <header class="sheet-header">
+        <h2 id="recipe-entry-title">Receta</h2>
+        <button class="icon-btn" id="recipe-entry-close" type="button" aria-label="Cerrar">✕</button>
+      </header>
+      <div class="sheet-body">
+        <p class="hint">Ingredientes (edita las cantidades):</p>
+        <ul id="recipe-entry-ingredients" class="entry-list"></ul>
+        <p id="recipe-entry-total" class="result"></p>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="recipe-entry-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="recipe-entry-save">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Listening sheet -->
   <section id="listening-sheet" class="overlay" hidden>
     <div class="sheet">

@@ -54,6 +54,13 @@ const els = {
   recipeMealSheet: $('recipe-meal-sheet'),
   recipeMealOptions: $('recipe-meal-options'),
   recipeMealClose: $('recipe-meal-close'),
+  recipeEntryForm: $('recipe-entry-form'),
+  recipeEntryTitle: $('recipe-entry-title'),
+  recipeEntryClose: $('recipe-entry-close'),
+  recipeEntryCancel: $('recipe-entry-cancel'),
+  recipeEntrySave: $('recipe-entry-save'),
+  recipeEntryIngredients: $('recipe-entry-ingredients'),
+  recipeEntryTotal: $('recipe-entry-total'),
   picker: $('picker'),
   pickerTitle: $('picker-title'),
   pickerClose: $('picker-close'),
@@ -119,6 +126,8 @@ const state = {
   recipeDraft: null,
   editingRecipeName: null,
   recipeMealTarget: null,
+  editingRecipeEntry: null,
+  recipeEntryDraft: null,
   listening: false,
   recognition: null,
 };
@@ -238,11 +247,12 @@ function renderSummary() {
 }
 
 function entryItem(type, entry) {
+  const isRecipe = Array.isArray(entry.ingredients);
   return `
-    <li class="entry" data-type="${type}" data-id="${entry.id}" role="button" tabindex="0" aria-label="Editar cantidad de ${escapeHtml(entry.foodName)}">
+    <li class="entry" data-type="${type}" data-id="${entry.id}" role="button" tabindex="0" aria-label="${isRecipe ? 'Editar receta' : 'Editar cantidad'} de ${escapeHtml(entry.foodName)}">
       <div class="entry-main">
-        <span class="entry-name">${escapeHtml(entry.foodName)}</span>
-        <span class="entry-qty">${entry.quantity} ${entry.unit}</span>
+        <span class="entry-name">${isRecipe ? '📋 ' : ''}${escapeHtml(entry.foodName)}</span>
+        <span class="entry-qty">${entryQuantityLabel(entry)}</span>
       </div>
       <div class="entry-nutrition">${entry.kcal} kcal · P ${entry.protein} · C ${entry.carbs} · G ${entry.fat}</div>
       <span class="entry-edit" aria-hidden="true">✎</span>
@@ -276,7 +286,9 @@ function renderMeals() {
     li.addEventListener('click', (event) => {
       if (event.target.closest('.entry-delete')) return;
       const entry = state.day.meals[li.dataset.type].find((e) => e.id === li.dataset.id);
-      if (entry) openQuantityEdit(li.dataset.type, entry);
+      if (!entry) return;
+      if (Array.isArray(entry.ingredients)) openRecipeEntryEdit(li.dataset.type, entry);
+      else openQuantityEdit(li.dataset.type, entry);
     }));
 }
 
@@ -436,6 +448,36 @@ function entryDataFromFood(food, quantity) {
 
 function pushEntryToMeal(type, entryData) {
   state.day.meals[type].push({ id: uid(), ...entryData });
+}
+
+function entryQuantityLabel(entry) {
+  if (Array.isArray(entry.ingredients)) {
+    return entry.quantity === 1 ? '1 ración' : `${entry.quantity} raciones`;
+  }
+  return `${entry.quantity} ${entry.unit}`;
+}
+
+function recipeEntryData(recipe, servings) {
+  const scaled = recipe.ingredients.map((ing) => ({
+    foodName: ing.foodName,
+    quantity: round1(ing.quantity * servings),
+    unit: ing.unit,
+    kcal: round1(ing.kcal * servings),
+    protein: round1(ing.protein * servings),
+    carbs: round1(ing.carbs * servings),
+    fat: round1(ing.fat * servings),
+  }));
+  const totals = sumNutrition(scaled);
+  return {
+    foodName: recipe.name,
+    quantity: round1(servings),
+    unit: 'ración',
+    kcal: totals.kcal,
+    protein: totals.protein,
+    carbs: totals.carbs,
+    fat: totals.fat,
+    ingredients: scaled,
+  };
 }
 
 function updateEntryQuantity({ type, id }, quantity) {
@@ -765,13 +807,121 @@ function openRecipeMealSheet(recipeName) {
 async function addRecipeToMeal(recipeName, type) {
   const recipe = state.recipes.find((r) => r.name === recipeName);
   if (!recipe) return;
-  for (const ingredient of recipe.ingredients) {
-    pushEntryToMeal(type, { ...ingredient });
-  }
+  pushEntryToMeal(type, recipeEntryData(recipe, 1));
   await persistDay();
   els.recipeMealSheet.hidden = true;
   if (state.page !== 'diary') switchPage('diary');
   renderAll();
+}
+
+// ----- Recipe entry editing (diary) -----
+
+function openRecipeEntryEdit(type, entry) {
+  state.editingRecipeEntry = { type, id: entry.id };
+  state.recipeEntryDraft = {
+    name: entry.foodName,
+    ingredients: entry.ingredients.map((ing) => ({
+      foodName: ing.foodName,
+      unit: ing.unit,
+      baseQty: ing.quantity,
+      baseKcal: ing.kcal,
+      baseProtein: ing.protein,
+      baseCarbs: ing.carbs,
+      baseFat: ing.fat,
+      quantity: ing.quantity,
+      kcal: ing.kcal,
+      protein: ing.protein,
+      carbs: ing.carbs,
+      fat: ing.fat,
+    })),
+  };
+  els.recipeEntryTitle.textContent = entry.foodName;
+  renderRecipeEntryIngredients();
+  els.recipeEntryForm.hidden = false;
+}
+
+function renderRecipeEntryIngredients() {
+  const draft = state.recipeEntryDraft;
+  const list = els.recipeEntryIngredients;
+  list.innerHTML = '';
+  if (!draft) return;
+
+  draft.ingredients.forEach((ing, i) => {
+    const li = document.createElement('li');
+    li.className = 'entry';
+    li.innerHTML = `
+      <div class="entry-main">
+        <span class="entry-name">${escapeHtml(ing.foodName)}</span>
+        <span class="entry-qty">${ing.unit}</span>
+      </div>
+      <input class="ingredient-qty" data-index="${i}" type="number" inputmode="decimal" min="0" step="0.1" value="${ing.quantity}" />
+      <div class="entry-nutrition"></div>`;
+
+    const input = li.querySelector('.ingredient-qty');
+    const nutrition = li.querySelector('.entry-nutrition');
+    const paint = () => {
+      nutrition.textContent = `${ing.kcal} kcal · P ${ing.protein} · C ${ing.carbs} · G ${ing.fat}`;
+    };
+    input.addEventListener('input', () => {
+      const qty = parseFloat(input.value);
+      if (Number.isNaN(qty) || qty <= 0) {
+        nutrition.textContent = '';
+        return;
+      }
+      const factor = qty / ing.baseQty;
+      ing.quantity = round1(qty);
+      ing.kcal = round1(ing.baseKcal * factor);
+      ing.protein = round1(ing.baseProtein * factor);
+      ing.carbs = round1(ing.baseCarbs * factor);
+      ing.fat = round1(ing.baseFat * factor);
+      paint();
+      updateRecipeEntryTotal();
+    });
+    paint();
+    list.appendChild(li);
+  });
+
+  updateRecipeEntryTotal();
+}
+
+function updateRecipeEntryTotal() {
+  const draft = state.recipeEntryDraft;
+  if (!draft) return;
+  const totals = sumNutrition(draft.ingredients);
+  els.recipeEntryTotal.textContent = `${totals.kcal} kcal · P ${totals.protein} · C ${totals.carbs} · G ${totals.fat}`;
+}
+
+async function saveRecipeEntry() {
+  if (!state.editingRecipeEntry || !state.recipeEntryDraft) return;
+  const { type, id } = state.editingRecipeEntry;
+  const entry = state.day.meals[type].find((e) => e.id === id);
+  if (!entry) return;
+
+  const ingredients = state.recipeEntryDraft.ingredients.map((ing) => ({
+    foodName: ing.foodName,
+    quantity: ing.quantity,
+    unit: ing.unit,
+    kcal: ing.kcal,
+    protein: ing.protein,
+    carbs: ing.carbs,
+    fat: ing.fat,
+  }));
+  const totals = sumNutrition(ingredients);
+  entry.ingredients = ingredients;
+  entry.kcal = totals.kcal;
+  entry.protein = totals.protein;
+  entry.carbs = totals.carbs;
+  entry.fat = totals.fat;
+
+  await persistDay();
+  closeRecipeEntryForm();
+  renderAll();
+}
+
+function closeRecipeEntryForm() {
+  els.recipeEntryForm.hidden = true;
+  state.editingRecipeEntry = null;
+  state.recipeEntryDraft = null;
 }
 
 // ----- Voice input -----
@@ -919,17 +1069,7 @@ function normalizeVoiceItems(parsed) {
       const recipe = state.recipes.find((x) => x.name === r.recipeName);
       if (!recipe) continue;
       const servings = Math.max(parseFloat(r.servings) || 1, 0.1);
-      for (const ing of recipe.ingredients) {
-        items.push({
-          foodName: ing.foodName,
-          quantity: round1(ing.quantity * servings),
-          unit: ing.unit,
-          kcal: round1(ing.kcal * servings),
-          protein: round1(ing.protein * servings),
-          carbs: round1(ing.carbs * servings),
-          fat: round1(ing.fat * servings),
-        });
-      }
+      items.push(recipeEntryData(recipe, servings));
     }
   }
 
@@ -943,12 +1083,13 @@ function renderVoiceItems(items) {
     return;
   }
   for (const item of items) {
+    const isRecipe = Array.isArray(item.ingredients);
     const li = document.createElement('li');
     li.className = 'entry';
     li.innerHTML = `
       <div class="entry-main">
-        <span class="entry-name">${escapeHtml(item.foodName)}</span>
-        <span class="entry-qty">${item.quantity} ${item.unit}</span>
+        <span class="entry-name">${isRecipe ? '📋 ' : ''}${escapeHtml(item.foodName)}</span>
+        <span class="entry-qty">${entryQuantityLabel(item)}</span>
       </div>
       <div class="entry-nutrition">${item.kcal} kcal · P ${item.protein} · C ${item.carbs} · G ${item.fat}</div>`;
     els.voiceItems.appendChild(li);
@@ -1066,6 +1207,10 @@ function bindEvents() {
   els.recipeFormSave.addEventListener('click', saveRecipe);
   els.recipeAddIngredient.addEventListener('click', openPickerForRecipe);
   els.recipeMealClose.addEventListener('click', () => { els.recipeMealSheet.hidden = true; });
+
+  els.recipeEntryClose.addEventListener('click', closeRecipeEntryForm);
+  els.recipeEntryCancel.addEventListener('click', closeRecipeEntryForm);
+  els.recipeEntrySave.addEventListener('click', saveRecipeEntry);
 
   els.micBtn.addEventListener('click', startVoice);
   els.voiceClose.addEventListener('click', closeVoiceSheet);
